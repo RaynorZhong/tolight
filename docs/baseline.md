@@ -6,7 +6,7 @@ Owner指定独立Rust项目 [tolink](https://github.com/RaynorZhong/tolink) 为�
 
 已核对 [tolink 825e542](https://github.com/RaynorZhong/tolink/tree/825e5424e04465661a0e2a30390534bb2b05965c) README：目前仅P0-A/P1离线基础、`vectors`和`check-config`，27项离线测试为项目报告，本项目未复跑；无HTTP、apply/run/init，不能立即接入。未来可用版本须验证规范兼容、实际Agent/模型、沙盒和恢复后再提供具体命令。当前保留已有LAN客户端、身份/钥/游标，不因选型清库、换钥、重提或双开。 下文历史demos不改写，旧自写要求以本决定为准；本轮报告见[tolink优先源码](demos/tolink-preferred-2026-11-16.md)。
 
-记录日期：2026-11-16。2026-11-16 Owner已创建公开仓库 [RaynorZhong/tolight](https://github.com/RaynorZhong/tolight)，并明确授权首次commit及沿用现有 `main` 的普通push；本次不打tag、不部署。此处记录授权与准备状态，不声称提交/推送已完成或CI已通过；远程验证以GitHub Actions实际运行记录为准。正式tag、Nix锁/环境验证、分支保护及生产/真实Agent等验收仍pending，`public_release_ci`不因授权变成passed。 生产机器与DNS尚未操作。当前本地验收见[M4记录](demos/M4.md)及[验收台账](acceptance.md)，M0–M3为历史记录。
+记录日期：2026-11-16。2026-11-16源码基线已首次提交并普通推送至公开仓库 [RaynorZhong/tolight](https://github.com/RaynorZhong/tolight) 的 `main`；首提交为 `578908b42c1f2012f7bb5c418ff30c17a07920d3`，已回读远端一致。质量门结果见 [GitHub Actions](https://github.com/RaynorZhong/tolight/actions/workflows/ci.yml)，不提前宣称CI通过。正式tag、Nix锁、分支保护及生产/真实Agent等验收仍pending，`public_release_ci`不因普通源码推送变成passed。 生产机器与DNS尚未操作。当前本地验收见[M4记录](demos/M4.md)及[验收台账](acceptance.md)，M0–M3为历史记录。
 
 最新[tolink优先接入与验收来源修订](demos/tolink-preferred-2026-11-16.md)完整质量门379项Rust加默认源码复测（380次执行）、90项TypeScript和6组独立向量通过。局域网页面/HTTPS指南与复制说明已正常更新，15项现场检查和公开资料验证通过，现有身份、seq1–25聊天、审核审计及CA保留；三名Hermes现场均online、未禁言。不迁移客户端、不增加依赖或数据库迁移，tolink本身尚不可在线接入。
 
@@ -109,7 +109,7 @@ LLVM version: 23.1.3
 - nixpkgs：`2074cc672349f14240fb7ea90d509e0b643e9dd4`；
 - rust-overlay：`5b87ee0513c29127a01ad06e9cb362ea5ce91e78`，nixpkgs 跟随上项。
 
-本机没有 Nix，因此 **尚未执行 flake 环境验收**，也未生成 `flake.lock`；当前两个输入均固定提交且 overlay 的 nixpkgs follows 根输入。后续使用已有 Nix 环境执行 `nix develop --no-write-lock-file --command scripts/quality-gate.sh`，验证后生成并提交锁文件。CI先执行npm ci --ignore-scripts再运行同一质量门；现已授权普通main首推，是否通过以实际GitHub Actions记录为准，不能把输入存在/本机通过当成Nix或Linux验证。
+本机没有 Nix，因此尚未在本机执行flake验证，也未生成 `flake.lock`；当前两个输入均固定提交且 overlay 的 nixpkgs follows 根输入。后续使用已有 Nix 环境执行 `nix develop --no-write-lock-file --command scripts/quality-gate.sh`，验证后生成并提交锁文件。源码已普通推送main，远程CI先执行npm ci --ignore-scripts再运行同一质量门；Nix/Linux实测结果以实际GitHub Actions记录为准，不能把输入存在/本机通过当作验证。
 
 ## 静态服务器和缓存
 
@@ -117,11 +117,11 @@ LLVM version: 23.1.3
 
 因此本机不需要人为递增 mtime 的补丁。Task 11 的 Publisher 仍必须用同目录新文件 + fsync + rename，不能给变化内容保留旧 mtime；生产文件系统上线前重做同秒、同长测试，不能把 APFS 结果当成 VPS 结果。
 
-## 尚未执行的环境
+## 目标环境与正式发布待办
 
 - 生产 Coordinator：待 VPS 确定；静态域名 `tolight.com`，参与者默认独立 `api.tolight.com`；单机 PostgreSQL/Caddy，不使用 CDN。生产操作系统、架构和进程管理器待部署时记录。
 - Hermes/真实第三方 Agent 设备：系统、架构、运行时和常驻条件未答。只影响 Task 15/25，不阻塞本地 M0，不据此反复追问。
-- GitHub：2026-11-16 Owner已创建公开仓库 [RaynorZhong/tolight](https://github.com/RaynorZhong/tolight)，并明确授权首次commit及沿用现有 `main` 的普通push；本次不打tag、不部署。此处记录授权与准备状态，不声称提交/推送已完成或CI已通过；远程验证以GitHub Actions实际运行记录为准。正式tag、Nix锁/环境验证、分支保护及生产/真实Agent等验收仍pending，`public_release_ci`不因授权变成passed。 MIT许可证保持；仓库创建/首推授权不替代正式源码发布、CI或分支保护验收。
+- GitHub：2026-11-16源码基线已首次提交并普通推送至公开仓库 [RaynorZhong/tolight](https://github.com/RaynorZhong/tolight) 的 `main`；首提交为 `578908b42c1f2012f7bb5c418ff30c17a07920d3`，已回读远端一致。质量门结果见 [GitHub Actions](https://github.com/RaynorZhong/tolight/actions/workflows/ci.yml)，不提前宣称CI通过。正式tag、Nix锁、分支保护及生产/真实Agent等验收仍pending，`public_release_ci`不因普通源码推送变成passed。 MIT许可证保持；仓库创建/首推授权不替代正式源码发布、CI或分支保护验收。
 
 ## 实现时发现的兼容点
 

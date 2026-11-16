@@ -54,7 +54,7 @@ id = "A2"
 title = "质量门与正式源码版本"
 local_status = "verified"
 final_status = "pending"
-remaining = ["公开仓库、已提交Cargo/npm锁文件、Nix环境、真实tag及其远程CI仍未验收。"]
+remaining = ["公开仓库main及Cargo/npm锁文件已首次提交；正式tag及其远程CI、flake.lock和分支保护仍待验收，普通分支CI不能替代正式版本验收。"]
 
 [[criteria.evidence]]
 kind = "local_record"
@@ -190,6 +190,11 @@ label = "持续运行与完整源码输入完整质量门"
 kind = "test_output"
 path = "docs/demos/quality-gate-tolink-preferred.txt"
 label = "tolink优先源码与真实Agent来源验收完整质量门"
+
+[[criteria.evidence]]
+kind = "local_record"
+path = "docs/demos/github-source-2026-11-16.md"
+label = "公开源码首次提交、普通main推送与远端回读"
 
 [[criteria]]
 id = "A3"

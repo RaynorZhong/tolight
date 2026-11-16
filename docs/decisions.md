@@ -1,8 +1,8 @@
 # 决策记录
 
-## 首次源码提交与推送授权（2026-11-16）
+## 首次源码提交与推送（2026-11-16）
 
-2026-11-16 Owner已创建公开仓库 [RaynorZhong/tolight](https://github.com/RaynorZhong/tolight)，并明确授权首次commit及沿用现有 `main` 的普通push；本次不打tag、不部署。此处记录授权与准备状态，不声称提交/推送已完成或CI已通过；远程验证以GitHub Actions实际运行记录为准。正式tag、Nix锁/环境验证、分支保护及生产/真实Agent等验收仍pending，`public_release_ci`不因授权变成passed。 先前“无HEAD、不创建/推送远程、工作流仅写入源码”的记录描述首推前阶段，由本次授权覆盖其动作限制；保留当时事实，不再作为首次普通push的阻断。现有生产部署与正式源码Release仍按原Gate执行。
+2026-11-16源码基线已首次提交并普通推送至公开仓库 [RaynorZhong/tolight](https://github.com/RaynorZhong/tolight) 的 `main`；首提交为 `578908b42c1f2012f7bb5c418ff30c17a07920d3`，已回读远端一致。质量门结果见 [GitHub Actions](https://github.com/RaynorZhong/tolight/actions/workflows/ci.yml)，不提前宣称CI通过。正式tag、Nix锁、分支保护及生产/真实Agent等验收仍pending，`public_release_ci`不因普通源码推送变成passed。 先前“无HEAD、不创建/推送远程、工作流仅写入源码”的记录描述首推前阶段，由本次授权覆盖其动作限制；保留当时事实，不再作为首次普通push的阻断。现有生产部署与正式源码Release仍按原Gate执行。
 
 ## Tolink优先源码入口（2026-11-16；覆盖旧自写决策）
 
@@ -127,7 +127,7 @@ Owner同日继续要求在本机管理页显示当前已接入Agent与在线状�
 | 1 | Coordinator 主机与域名 | 已确认：本机开发，云端 VPS 生产，静态域名 `tolight.com`。仍需选 VPS 服务商、操作系统、CPU 架构；参与者用独立子域，建议 `api.tolight.com`，在 Task 16 前定稿。 | VPS 细节：Task 3；参与者域名：Task 16 |
 | 2 | 静态托管形态 | 单机部署 Coordinator、PostgreSQL、Caddy，不用 CDN。 | M0 |
 | 3a | 代码托管与CI | Owner于2026-11-16创建公开[RaynorZhong/tolight](https://github.com/RaynorZhong/tolight)并授权首次commit/main普通push；使用现有Actions，结果以实际运行记录为准，不提前宣称CI通过。Nix/PG18/Node及独立向量保持原质量门，不增安装包矩阵。 | Task1；Nix锁/环境和分支保护待验 |
-| 3b | 仓库与许可证 | 已创建公开RaynorZhong/tolight、保留MIT，首次commit/main普通push已授权；不提交秘密、私有配置、owner_contact或未经授权私人信息。已授权公开Operator/安全渠道可入指定文档。正式tag/Release仍依Task27，不打tag、不部署。 | Task1、26(a)、27；public_release_ci仍pending |
+| 3b | 仓库与许可证 | 公开RaynorZhong/tolight已完成首次commit/main普通push，保留MIT；不提交秘密、私有配置、owner_contact或未经授权私人信息。已授权公开Operator/安全渠道可入指定文档。正式tag/Release仍依Task27，未打tag或部署。 | Task1、26(a)、27；public_release_ci仍pending |
 | 3c | 安装包平台、校验值及签名条件 | tolight不交付客户端安装包/SDK，平台矩阵、公证/包签名不构成Gate；独立tolink为优先源码入口，只按已核实能力的版本实际支持范围使用，不新增二进制/安装器承诺。Owner选择实际运行环境。 | 不阻塞tolight任务；客户端实际可用性由Task15/25验证 |
 | 4 | Operator 与监控 | 人选、通知渠道、独立外部探针位置仍需指定；默认告警送达 10 分钟、发布滞后 5 分钟、日额度 80%、全聊天室每小时消息数 60（只告警）；其余阈值 Task 29 按指标确定。 | M2 |
 | 5 | 首批试点 Owner 与身份 | Owner、`agent_id`、公开显示名仍需落实。 | M2 |

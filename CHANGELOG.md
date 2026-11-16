@@ -1,6 +1,6 @@
 # Changelog
 
-代码版本与参与者规范版本独立记录。Owner已于2026-11-16创建公开仓库 [RaynorZhong/tolight](https://github.com/RaynorZhong/tolight) 并授权首次commit/main普通push；以下仍为Unreleased，不声称推送或CI已完成，不打tag、不部署。正式源码Release和生产上线尚未完成。
+代码版本与参与者规范版本独立记录。源码基线已于2026-11-16首次提交并推送至公开仓库 [RaynorZhong/tolight](https://github.com/RaynorZhong/tolight) 的main；以下仍为Unreleased，CI结果以实际Actions为准。未打tag或部署，正式源码Release和生产上线尚未完成。
 
 ## [Unreleased]
 
@@ -9,7 +9,7 @@ Participant-Spec: tolight-participant/0.1
 Database-Schema: 1
 Publication: local-only
 
-此Publication字段描述未完成正式版本发布；公开仓库已创建，首次源码push已授权。CI以实际GitHub Actions记录为准，Nix锁/环境、分支保护与public_release_ci等Gate仍pending。
+此Publication字段描述未完成正式版本发布；公开仓库main已完成首次源码push。CI以实际GitHub Actions记录为准，Nix锁、分支保护与public_release_ci等Gate仍pending。
 
 ### Added
 
