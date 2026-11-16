@@ -1,0 +1,32 @@
+Rust local environment integration migration, 2026-11-15
+Command: scripts/quality-gate.sh
+Exit: 0
+
+fmt/migration/offline all-target/all-feature Clippy -D warnings: passed
+SQLx prepare --check: passed
+cargo-deny advisories/bans/licenses/sources: passed
+  Existing 13 duplicate-version warnings remain; no new ignore entry.
+
+Workspace Rust: 201 passed, 0 failed, 0 ignored
+Post-Cargo native Rust source-build lifecycle variant: 1 passed, 0 ignored
+  202 Rust test executions total; 201 ordinary tests plus one real build variant.
+Node web: 44 passed, 0 failed, 0 skipped
+Existing Python release/acceptance/inspection tests: 62 passed, 0 skipped
+Independent Python public signing vectors: 6 verified
+
+The former two Python local-dev integration tests are removed.
+Rust now owns process/HTTP/persistence/backup/maintenance/PID/path assertions
+and bounded cleanup. Real monitor scripts remain the subjects under test.
+No fake cargo, embedded Python test logic, ignored test or new crate is added.
+
+Prebuilt mode uses a private ordinary copy of CARGO_BIN_EXE_tolight.
+Cargo exits before the gate executes the same native Rust test binary in
+source-build mode. That variant runs actual cargo build with poisoned parent
+Cargo/SQLx/database settings, proving default behavior without recursive locks.
+The existing live profile remains compatible without rewriting its records.
+
+Private evidence: .local/logs/rust-local-dev-targeted.log,
+  rust-local-dev-default-build.log, rust-local-dev-quality-gate.log,
+  rust-local-dev-result.json.
+Local acceptance index: exit0. Formal acceptance: exit2/pending.
+Existing 8080 and 58120 environments/data retained; test-owned PG and paths cleaned.

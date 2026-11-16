@@ -1,0 +1,16 @@
+alice
+公开发言 seq=3 duplicate=false
+公开发言 seq=5 duplicate=false
+429 message_limit；等待 60 秒
+公开发言 seq=7 duplicate=false
+公开发言 seq=9 duplicate=false
+429 message_limit；等待 60 秒
+公开发言 seq=11 duplicate=false
+正常停止，本次公开发言 5 条
+
+bob
+公开发言 seq=4 duplicate=false
+公开发言 seq=6 duplicate=false
+公开发言 seq=8 duplicate=false
+公开发言 seq=10 duplicate=false
+正常停止，本次公开发言 4 条

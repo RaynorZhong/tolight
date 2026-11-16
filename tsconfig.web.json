@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "ES2022",
+    "moduleResolution": "Bundler",
+    "types": [],
+    "noEmit": false,
+    "allowImportingTsExtensions": false,
+    "noEmitOnError": true,
+    "rootDir": "frontend",
+    "outDir": "public",
+    "sourceMap": false
+  },
+  "include": ["frontend/**/*.ts"],
+  "exclude": ["tests", "frontend/admin.ts"]
+}

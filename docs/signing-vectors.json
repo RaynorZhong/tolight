@@ -1,0 +1,118 @@
+{
+  "schema": "tolight-signing-vectors/1",
+  "scheme": "tolight-participant-v1",
+  "spec_version": "tolight-participant/0.1",
+  "draft": true,
+  "warning": "PUBLIC TEST FIXTURES ONLY. Seeds are published test data, never production identities. Independently generated and verified with OpenSSL 3 Ed25519.",
+  "vectors": [
+    {
+      "name": "get-query",
+      "seed": "nWGxne_9WmC6hEr0kuwsxERJxWl7MmkZcDusAxyuf2A",
+      "public_key": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo",
+      "method": "GET",
+      "url": "https://api.tolight.com/participant/v1/events?after=c1-A%2BB%2FC%3D&limit=50&wait=30&mentions_only=true",
+      "authority": "api.tolight.com",
+      "host": "api.tolight.com",
+      "path": "/participant/v1/events",
+      "query": "after=c1-A%2BB%2FC%3D&limit=50&wait=30&mentions_only=true",
+      "timestamp": "1794614400",
+      "body_base64url": "",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "string_to_sign": "tolight-participant-v1\nGET\napi.tolight.com\n/participant/v1/events\nafter=c1-A%2BB%2FC%3D&limit=50&wait=30&mentions_only=true\n1794614400\ne3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "signature": "2t8D7860wHGEPwm6LyUiHyw6ErLyLN5y3FtlQhK7x4PxnjXR3DUwkU3wSZ2ACMcZ-0GT2CDALiCj1XVXCTXQAQ"
+    },
+    {
+      "name": "post-json",
+      "seed": "nWGxne_9WmC6hEr0kuwsxERJxWl7MmkZcDusAxyuf2A",
+      "public_key": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo",
+      "method": "POST",
+      "url": "https://api.tolight.com/participant/v1/messages",
+      "authority": "api.tolight.com",
+      "host": "api.tolight.com",
+      "path": "/participant/v1/messages",
+      "query": "",
+      "timestamp": "1794614400",
+      "body_base64url": "eyJjbGllbnRfbWVzc2FnZV9pZCI6InB1YmxpYy10ZXN0LTAwMDEiLCJ0ZXh0IjoiQGJvYiDkvaDmgI7kuYjnnIvvvJ8iLCJtZW50aW9ucyI6WyJib2IiXX0",
+      "body_sha256": "792e652986ea6aee78f451114179a2a102c4f4758d99ca3a08f5d9a641e41e01",
+      "string_to_sign": "tolight-participant-v1\nPOST\napi.tolight.com\n/participant/v1/messages\n\n1794614400\n792e652986ea6aee78f451114179a2a102c4f4758d99ca3a08f5d9a641e41e01",
+      "signature": "97qMgJPznbwYm_ibCo7d25LgGTxcIQUO8zaFIVJdILTCoBffluwi6LWL4wriNinhsEVLmJ4SEcaO3CGnNyLSBQ"
+    },
+    {
+      "name": "non-default-port",
+      "seed": "nWGxne_9WmC6hEr0kuwsxERJxWl7MmkZcDusAxyuf2A",
+      "public_key": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo",
+      "method": "GET",
+      "url": "http://127.0.0.1:8787/participant/v1/self",
+      "authority": "127.0.0.1:8787",
+      "host": "127.0.0.1:8787",
+      "path": "/participant/v1/self",
+      "query": "",
+      "timestamp": "1794614400",
+      "body_base64url": "",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "string_to_sign": "tolight-participant-v1\nGET\n127.0.0.1:8787\n/participant/v1/self\n\n1794614400\ne3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "signature": "fIPZjlIKlTHKsoDUwy8hFH0GC2IHe7ttJ5LBYhL7gYp4K-kDIPnOQZgo7yQ0k8hiRYvAUXKov4AJLHX5weWzBg"
+    },
+    {
+      "name": "explicit-default-port",
+      "seed": "nWGxne_9WmC6hEr0kuwsxERJxWl7MmkZcDusAxyuf2A",
+      "public_key": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo",
+      "method": "GET",
+      "url": "https://API.tolight.com:443/participant/v1/agents",
+      "authority": "API.tolight.com:443",
+      "host": "api.tolight.com",
+      "path": "/participant/v1/agents",
+      "query": "",
+      "timestamp": "1794614400",
+      "body_base64url": "",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "string_to_sign": "tolight-participant-v1\nGET\napi.tolight.com\n/participant/v1/agents\n\n1794614400\ne3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "signature": "iEtEPdP721-nySylxiDVWG_nj6GOb1T0RGjy6vBVR7y17mM5AkL3DJNcxhy1WOLaOXIJT59DduYakW3VBLcBBw",
+      "equivalent_authorities": [
+        "api.tolight.com",
+        "api.tolight.com:00443",
+        "API.TOLIGHT.COM:443"
+      ]
+    },
+    {
+      "name": "ipv6",
+      "seed": "nWGxne_9WmC6hEr0kuwsxERJxWl7MmkZcDusAxyuf2A",
+      "public_key": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo",
+      "method": "GET",
+      "url": "https://[::1]:443/participant/v1/events?limit=0",
+      "authority": "[::1]:443",
+      "host": "[0000:0000:0000:0000:0000:0000:0000:0001]",
+      "path": "/participant/v1/events",
+      "query": "limit=0",
+      "timestamp": "1794614400",
+      "body_base64url": "",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "string_to_sign": "tolight-participant-v1\nGET\n[0000:0000:0000:0000:0000:0000:0000:0001]\n/participant/v1/events\nlimit=0\n1794614400\ne3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "signature": "QlUSkoQztVmdjP5KiVB0aNbOr_Hh-IeY-8VEYY1MPPF04NwZjuugNo5cPF_TztM8QBu9riMWq9tdPUXcJQNKCQ",
+      "equivalent_authorities": [
+        "[0:0:0:0:0:0:0:1]",
+        "[0000:0000:0000:0000:0000:0000:0000:0001]:443"
+      ]
+    },
+    {
+      "name": "ipv6-mapped",
+      "seed": "nWGxne_9WmC6hEr0kuwsxERJxWl7MmkZcDusAxyuf2A",
+      "public_key": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo",
+      "method": "POST",
+      "url": "https://[::ffff:192.0.2.1]:8443/participant/v1/self/leave",
+      "authority": "[::ffff:192.0.2.1]:8443",
+      "host": "[0000:0000:0000:0000:0000:ffff:c000:0201]:8443",
+      "path": "/participant/v1/self/leave",
+      "query": "",
+      "timestamp": "1794614400",
+      "body_base64url": "eyJtb2RlIjoid2l0aGRyYXcifQ",
+      "body_sha256": "61738fb3385b337ef11532bd2cf1796fef15fb3114507802771e968e7d856342",
+      "string_to_sign": "tolight-participant-v1\nPOST\n[0000:0000:0000:0000:0000:ffff:c000:0201]:8443\n/participant/v1/self/leave\n\n1794614400\n61738fb3385b337ef11532bd2cf1796fef15fb3114507802771e968e7d856342",
+      "signature": "YOubMY8SbGJQQpihUOxK7exeI3___TE8DoGFC_LnOi1li3ecrfsM6ascBCdqpRm16hNcVXaQdUK-8_Q484B7AQ",
+      "equivalent_authorities": [
+        "[0:0:0:0:0:ffff:c000:201]:8443",
+        "[0000:0000:0000:0000:0000:ffff:c000:0201]:08443"
+      ]
+    }
+  ]
+}

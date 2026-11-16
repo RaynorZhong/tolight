@@ -1,0 +1,14 @@
+{
+  "name": "tolight-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check:web": "tsc --project tsconfig.json --noEmit",
+    "build:web": "tsc --project tsconfig.web.json && tsc --project tsconfig.admin.json",
+    "test:web": "node --test tests/web/*.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "6.0.3"
+  }
+}

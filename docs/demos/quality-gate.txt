@@ -1,0 +1,85 @@
+    Checking tolight-core v0.1.0 (<repo>/crates/tolight-core)
+    Checking tolight-cli v0.1.0 (<repo>/crates/tolight-cli)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.36s
+   Compiling tolight-core v0.1.0 (<repo>/crates/tolight-core)
+   Compiling tolight-cli v0.1.0 (<repo>/crates/tolight-cli)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.66s
+     Running unittests src/lib.rs (target/debug/deps/tolight_cli-e2ffd2b967db5ffb)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target/debug/deps/tolight-f262919606057520)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/public_preview.rs (target/debug/deps/public_preview-ae0113c7ee1a649c)
+
+running 3 tests
+test preview_does_not_follow_paths_outside_its_root ... ok
+test preview_is_read_only_and_uses_content_etags ... ok
+test command_help_exposes_the_planned_entry_points ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.37s
+
+     Running unittests src/lib.rs (target/debug/deps/tolight_core-4700b68ac9c0a78f)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+advisories ok, bans ok, licenses ok, sources ok
+✔ fixed chunk paths include the unfinished final chunk (0.499708ms)
+✔ first screen fetches no more than the last two chunks (0.281083ms)
+✔ merging is ordered and unique by sequence (0.079083ms)
+✔ chunk arithmetic rejects invalid positions and spans every intervening chunk (0.112959ms)
+✔ sample data has a continuous 500-event timeline and every public event kind (1.471041ms)
+✔ head 1: initial page and complete older history have no gaps or duplicates (2.0915ms)
+✔ head 199: initial page and complete older history have no gaps or duplicates (1.581583ms)
+✔ head 200: initial page and complete older history have no gaps or duplicates (1.114792ms)
+✔ head 201: initial page and complete older history have no gaps or duplicates (1.668541ms)
+✔ head 250: initial page and complete older history have no gaps or duplicates (1.902334ms)
+✔ head 400: initial page and complete older history have no gaps or duplicates (2.001375ms)
+✔ head 450: initial page and complete older history have no gaps or duplicates (1.902208ms)
+✔ head 500: initial page and complete older history have no gaps or duplicates (2.005041ms)
+✔ empty timeline avoids chunk requests and can later receive its first pending event (1.203166ms)
+✔ future rows in an unfinished chunk are bounded by the current manifest (1.511208ms)
+✔ pending new events do not merge until the reader explicitly reveals them (3.334708ms)
+✔ a failed update preserves messages and cursor, then retries all missing chunks (3.25075ms)
+✔ manifest and older-history failures leave existing content usable (1.8155ms)
+✔ malformed public fields are treated as a failed update instead of corrupting the current view (1.876166ms)
+✔ metadata changes update paused/demo flags and the participant list without new events (1.56075ms)
+✔ reset to a smaller head discards caches, pending events, and late old history responses (1.739667ms)
+✔ reset is detected even when the restored timeline has regrown beyond the previous head (2.075583ms)
+✔ same sequence with a different head event also resets the timeline (2.156833ms)
+✔ a retraction is immediate for visible content and reply previews before revealing new events (10.875959ms)
+✔ late original content cannot resurrect a retracted reply target (2.228334ms)
+✔ a pending message can be retracted without briefly showing its original body (1.936542ms)
+✔ loading a reply target does not move the history boundary or consumption cursor (2.028333ms)
+✔ unknown fields and event kinds do not break progress or render unknown text (1.687333ms)
+✔ mention highlighting follows the structured list and does not match emails or partial IDs (0.052667ms)
+✔ retraction conversion is pure and removes text/mentions (0.060791ms)
+✔ DOM renders untrusted content literally, all known state kinds, dates, and data IDs (162.333333ms)
+✔ mounted UI keeps old reading position, exposes the new-message action, and pauses hidden-tab polling (56.17525ms)
+✔ older-history insertion preserves the visual position rather than jumping to the bottom (63.917708ms)
+✔ keyboard focus scrolling to the history control does not automatically load history (49.774583ms)
+✔ keyboard history activation keeps the control visible and restores focus after busy state or failure (159.11275ms)
+✔ the page has no writing controls, navigation links, external resources, or unsafe DOM sinks (4.798083ms)
+ℹ tests 36
+ℹ suites 0
+ℹ pass 36
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 702.995417
+PASS get-query
+PASS post-json
+PASS non-default-port
+PASS explicit-default-port
+PASS ipv6
+PASS ipv6-mapped
+Verified 6 public signing vectors

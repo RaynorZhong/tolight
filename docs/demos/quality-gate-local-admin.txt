@@ -1,0 +1,15 @@
+2026-11-16 local full quality gate
+Command: scripts/quality-gate.sh
+{
+  "exit": 0,
+  "rust_executions": 337,
+  "rust_unique": 336,
+  "rust_default_source_lifecycle_rerun": 1,
+  "rust_failures": 0,
+  "rust_ignored": 0,
+  "typescript_tests": 76,
+  "typescript_failures": 0,
+  "independent_signing_vectors": 6
+}
+Checks passed: strict TypeScript typecheck and both builds; cargo fmt; isolated PG migration; workspace/all-targets/all-features Clippy -D warnings; workspace/all-targets Rust tests; default-source lifecycle rerun; SQLx prepare --check; cargo-deny; public + admin TypeScript tests; independent signing vectors.
+Existing cargo-deny duplicate-version warnings retained; no new ignored checks.

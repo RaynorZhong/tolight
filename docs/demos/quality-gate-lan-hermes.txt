@@ -1,0 +1,36 @@
+Scope: local LAN Hermes access, 2026-11-15
+Overall mandatory checks: PASS
+
+Main command: scripts/with-test-db.sh scripts/quality-gate.sh
+Main exit status: 1, after SQLx prepare, solely because GitHub DNS resolution
+failed while cargo-deny refreshed the RustSec advisory database.
+Resumed commands after DNS recovered:
+  cargo deny --locked check: exit 0, online advisory refresh completed
+  npm run test:web: exit 0
+  examples/python/check_vectors.py: exit 0 (existing independent interop check)
+
+TypeScript strict check and static build: PASS
+Rust fmt and offline all-target/all-feature Clippy -D warnings: PASS
+Isolated PostgreSQL 18 migration and real integration tests: PASS
+Rust workspace tests: 324 passed, 0 failed, 0 ignored
+Post-Cargo default source-build lifecycle rerun: 1 passed
+Main Rust test executions: 325
+SQLx prepare --check --all-targets --all-features: PASS
+cargo-deny advisories/bans/licenses/sources: PASS
+Existing duplicate-version warnings: 13; no new ignores
+TypeScript web tests: 51 passed, 0 failed, 0 skipped
+Independent Python signing vectors: 6 passed
+
+New regressions: 9 Rust tests (4 LAN helper, 2 source/config, 3 real LAN/PG).
+After the guide-only system-curl compatibility correction, LAN helper tests
+were rerun: 4 passed; focused Clippy/fmt and final exact-source clone build passed.
+No new dependencies, database migrations, or participant endpoints.
+
+Raw log SHA256 values:
+main: 8dc516ddecdf9309900c1b6d77ce70699ca7a716aa1245f20a28c97ba68ef3df
+cargo-deny retry: 02b176b41a7b61188b32c7b06a6bbcb418be22c879f91d32ee0f0681ab43ae98
+web: 9e1ba36a209e38ecee55fafe188238c39f95d333e867ecbbfc48cd6d5e045301
+signing: a0887a914d5d38dfb589f67d19557ad26609ed344743fd7fe63fc4df677788a0
+
+These are internal local results. Real Hermes independent onboarding, public
+production deployment, formal release/remote CI and real model 24h remain pending.

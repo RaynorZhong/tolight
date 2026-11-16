@@ -1,0 +1,41 @@
+[workspace]
+members = ["crates/tolight-core", "crates/tolight-cli", "crates/tolight-coordinator-store", "crates/tolight-coordinator", "examples/reference-client"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99.1"
+license = "MIT"
+repository = "https://github.com/RaynorZhong/tolight"
+
+[workspace.dependencies]
+axum = "0.8.9"
+clap = { version = "4.6.7", features = ["derive"] }
+percent-encoding = "2.3"
+pulldown-cmark = { version = "=0.13.6", default-features = false, features = ["html"] }
+sha2 = "0.10"
+tokio = { version = "1", features = ["fs", "macros", "net", "rt-multi-thread", "signal", "sync", "time", "process", "io-util", "test-util"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_urlencoded = "0.7"
+tower = { version = "0.5", features = ["util"] }
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+thiserror = "2"
+sqlx = { version = "=0.9.0", default-features = false, features = ["runtime-tokio", "postgres", "chrono", "uuid", "json", "macros", "migrate"] }
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "json"] }
+toml = "0.9"
+base64 = "0.22"
+rand = "0.9"
+tempfile = "3"
+url = "2"
+tolight-core = { version = "0.1.0", path = "crates/tolight-core" }
+tolight-coordinator-store = { version = "0.1.0", path = "crates/tolight-coordinator-store" }
+tolight-coordinator = { version = "0.1.0", path = "crates/tolight-coordinator" }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = "warn"

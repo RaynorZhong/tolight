@@ -1,0 +1,78 @@
+name: Source release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: source-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  quality:
+    runs-on: ubuntu-24.04
+    outputs:
+      commit: ${{ steps.identity.outputs.commit }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086
+      - name: Install locked frontend development dependencies
+        run: nix develop --no-write-lock-file --command npm ci --ignore-scripts
+      - name: Quality gate on the exact tag commit
+        run: nix develop --no-write-lock-file --command scripts/quality-gate.sh
+      - name: Check formal release requirements
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          nix develop --no-write-lock-file --command scripts/release-check.sh \
+            --production --tag "$RELEASE_TAG" --report .local/release-check.json
+      - name: Record the checked commit
+        id: identity
+        run: |
+          git diff --exit-code
+          printf 'commit=%s\n' "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  publish:
+    needs: quality
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ needs.quality.outputs.commit }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086
+      - name: Verify the public repository and unchanged remote tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          EXPECTED_COMMIT: ${{ needs.quality.outputs.commit }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_COMMIT"
+          test "$(gh api "repos/$GH_REPO" --jq '.private')" = false
+          git fetch --no-tags origin "refs/tags/$RELEASE_TAG"
+          test "$(git rev-parse 'FETCH_HEAD^{commit}')" = "$EXPECTED_COMMIT"
+      - name: Extract reviewed release notes
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          nix develop --no-write-lock-file --command env SQLX_OFFLINE=true \
+            cargo build --locked -p tolight-cli --bin tolight-ops
+          nix develop --no-write-lock-file --command scripts/release-check.sh \
+            --tag "$RELEASE_TAG" --notes .local/release-notes.md
+      - name: Publish source tag and release notes without binary attachments
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: gh release create "$RELEASE_TAG" --verify-tag --title "$RELEASE_TAG" --notes-file .local/release-notes.md

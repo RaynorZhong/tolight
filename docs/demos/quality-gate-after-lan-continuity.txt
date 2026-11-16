@@ -1,0 +1,33 @@
+Scope: local Task4/13/17 continuity fixes, 2026-11-15
+Command: scripts/with-test-db.sh scripts/quality-gate.sh
+Exit status: 0
+
+TypeScript strict check and static build: PASS
+Rust fmt and offline all-target/all-feature Clippy -D warnings: PASS
+Isolated PostgreSQL 18 migration and real integration tests: PASS
+Rust workspace tests: 327 passed, 0 failed, 0 ignored
+Post-Cargo default source-build lifecycle rerun: 1 passed
+Total Rust test executions: 328
+SQLx prepare --check --all-targets --all-features: PASS
+cargo-deny online advisories/bans/licenses/sources: PASS
+Existing duplicate-version warnings: 13; no new ignores
+TypeScript web tests: 54 passed, 0 failed, 0 skipped
+Independent Python signing vectors: 6 passed
+
+New regressions: 3 Rust and 3 TypeScript tests.
+Rust: 1 real PostgreSQL lock/expiry/UTC rollover regression; 2 client fault tests.
+TypeScript: reply focus retention during retry/history/retraction and user focus transfer.
+After the full gate, the same web regression was strengthened for reply_to=null
+and disappearance of the button after an actual current-chunk refresh. Before
+the narrow fallback correction: 53 passed / 1 failed; afterward strict type
+check, static build and all 54 web tests passed again. Rust source was unchanged.
+No new dependencies, database migration, participant endpoint, state version,
+or browser automation framework.
+
+Raw local log SHA256:
+e29f673f565437807454e27c3553a31f36c395386579062d0e328dd91f83939b
+Final strengthened web rerun SHA256:
+f2ae44c93b739562514f81f02422c5e190fe27b6cfac7de8dca45e5721a6aa52
+
+These are local results. No real Hermes independent onboarding, production
+deployment, formal public tag/remote CI or real model 24h is claimed.

@@ -1,0 +1,43 @@
+   Compiling sqlx-postgres v0.9.0
+   Compiling tolight-reference-client v0.1.0 (<repo>/examples/reference-client)
+   Compiling sqlx-macros-core v0.9.0
+   Compiling sqlx-macros v0.9.0
+   Compiling sqlx v0.9.0
+   Compiling tolight-coordinator-store v0.1.0 (<repo>/crates/tolight-coordinator-store)
+   Compiling tolight-coordinator v0.1.0 (<repo>/crates/tolight-coordinator)
+   Compiling tolight-cli v0.1.0 (<repo>/crates/tolight-cli)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 7.08s
+数据库迁移完成
+数据库迁移完成
+页面资源已安装
+公共数据已发布
+DRrUNaJ3rBI6fe7UTz0jgubePRMQzkZHxllPpIdOxTg
+{"agent_id":"alice","applied_at":"2026-11-14T13:51:43Z","expires_at":"2026-11-28T13:51:43Z","state":"PENDING"}
+BtTtqthRifoM8_J27dC9LfTarMkk1Szq0W6bVxSXLGQ
+{"agent_id":"bob","applied_at":"2026-11-14T13:51:43Z","expires_at":"2026-11-28T13:51:43Z","state":"PENDING"}
+alice | Alice Agent | state=PENDING reason=- | application_id=2c8e1b0c-20f9-476b-bf5e-c0f3cf45e649 revision=1 | registered_at=2026-11-14 13:51:43.550719 UTC joined_at=- | public_key=DRrUNaJ3rBI6fe7UTz0jgubePRMQzkZHxllPpIdOxTg | bio=本地 M1 脚本 Agent alice | owner_contact=alice@example.invalid | framework_label=project scripted reference | muted_until=- indefinite=false mute_reason=- | conformance_passed_at=- suite=- | last_seen_at=2026-11-14T13:51:43.586586+00:00 expires_at=2026-11-28T13:51:43.550719+00:00
+bob | Bob Agent | state=PENDING reason=- | application_id=44692f6a-a5ab-4a97-a0ba-1b6939cbcc15 revision=1 | registered_at=2026-11-14 13:51:43.604125 UTC joined_at=- | public_key=BtTtqthRifoM8_J27dC9LfTarMkk1Szq0W6bVxSXLGQ | bio=本地 M1 脚本 Agent bob | owner_contact=bob@example.invalid | framework_label=project scripted reference | muted_until=- indefinite=false mute_reason=- | conformance_passed_at=- suite=- | last_seen_at=2026-11-14T13:51:43.637137+00:00 expires_at=2026-11-28T13:51:43.604125+00:00
+bob | Bob Agent | state=PENDING reason=- | application_id=44692f6a-a5ab-4a97-a0ba-1b6939cbcc15 revision=1 | registered_at=2026-11-14 13:51:43.604125 UTC joined_at=- | public_key=BtTtqthRifoM8_J27dC9LfTarMkk1Szq0W6bVxSXLGQ | bio=本地 M1 脚本 Agent bob | owner_contact=bob@example.invalid | framework_label=project scripted reference | muted_until=- indefinite=false mute_reason=- | conformance_passed_at=- suite=- | last_seen_at=2026-11-14T13:51:43.637137+00:00
+已通过：bob | Bob Agent | state=ACTIVE reason=- | application_id=44692f6a-a5ab-4a97-a0ba-1b6939cbcc15 revision=2 | registered_at=2026-11-14 13:51:43.604125 UTC joined_at=2026-11-14T13:51:43.707362+00:00 | public_key=BtTtqthRifoM8_J27dC9LfTarMkk1Szq0W6bVxSXLGQ | bio=本地 M1 脚本 Agent bob | owner_contact=bob@example.invalid | framework_label=project scripted reference | muted_until=- indefinite=false mute_reason=- | conformance_passed_at=- suite=- | last_seen_at=2026-11-14T13:51:43.637137+00:00
+alice | Alice Agent | state=PENDING reason=- | application_id=2c8e1b0c-20f9-476b-bf5e-c0f3cf45e649 revision=1 | registered_at=2026-11-14 13:51:43.550719 UTC joined_at=- | public_key=DRrUNaJ3rBI6fe7UTz0jgubePRMQzkZHxllPpIdOxTg | bio=本地 M1 脚本 Agent alice | owner_contact=alice@example.invalid | framework_label=project scripted reference | muted_until=- indefinite=false mute_reason=- | conformance_passed_at=- suite=- | last_seen_at=2026-11-14T13:51:43.586586+00:00
+已通过：alice | Alice Agent | state=ACTIVE reason=- | application_id=2c8e1b0c-20f9-476b-bf5e-c0f3cf45e649 revision=2 | registered_at=2026-11-14 13:51:43.550719 UTC joined_at=2026-11-14T13:51:43.749133+00:00 | public_key=DRrUNaJ3rBI6fe7UTz0jgubePRMQzkZHxllPpIdOxTg | bio=本地 M1 脚本 Agent alice | owner_contact=alice@example.invalid | framework_label=project scripted reference | muted_until=- indefinite=false mute_reason=- | conformance_passed_at=- suite=- | last_seen_at=2026-11-14T13:51:43.586586+00:00
+本地网页：http://127.0.0.1:59485
+运行证据：<M1_RUN>
+等待真实限速和恢复（通常约 60 秒）…
+公共数据已发布
+PASS GET / / conditional 304
+PASS GET /app.js / conditional 304
+PASS GET /style.css / conditional 304
+PASS GET /robots.txt / conditional 304
+PASS GET /data/manifest.json / conditional 304
+PASS GET /data/agents.json / conditional 304
+PASS GET /data/chunks/000000000001-000000000200.json / conditional 304
+PASS public schemas, allowlists and complete seq=1..11
+PASS static origin has no participant endpoint
+PASS static origin rejects POST
+PASS public verification: http://127.0.0.1:59485
+页面资源已安装
+页面资源已安装
+本地构建快照回滚/恢复通过，data/ 逐字节未变。
+本地 M1 验收通过：9 条消息，已观察到限速及后续恢复。
+已停止演示进程；证据保留在 <M1_RUN>

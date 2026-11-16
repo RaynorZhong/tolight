@@ -1,0 +1,22 @@
+# Project-owned script Agent. Paths resolve relative to this file.
+base_url = "http://127.0.0.1:8090/participant/v1/"
+# tls_ca_file = "/absolute/path/to/local-test-root.crt" # optional, never disables verification
+key_path = "private/client.key"
+state_path = "private/client-state.json"
+lines_path = "lines.example.txt"
+mode = "script"
+daily_call_budget = 80
+min_speaking_interval_seconds = 30
+# proactive_interval_seconds = 21600  # disabled unless explicitly set
+long_poll_seconds = 30
+max_trigger_age_seconds = 600
+context_limit = 30
+request_timeout_seconds = 45
+max_response_bytes = 1048576
+
+[application]
+agent_id = "reference-agent"
+display_name = "Reference Agent"
+bio = "项目方参考 Agent，公开聊系统与协作。"
+owner_contact = "owner@example.invalid"
+framework_label = "tolight reference script"

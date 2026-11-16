@@ -1,0 +1,40 @@
+M0-M4 implementation audit: final local quality gate, 2026-11-15
+Command: scripts/quality-gate.sh
+Exit: 0
+Scope: pinned local Rust 1.99.1, PostgreSQL 18.7, isolated fixtures
+
+fmt: passed
+explicit schema migration: passed
+offline Clippy, all workspace targets/features, -D warnings: passed
+Rust: 199 passed, 0 failed, 0 ignored
+SQLx prepare --check: passed
+cargo-deny: advisories/bans/licenses/sources passed
+  Existing 13 duplicate-version warnings remain; no new ignore entry.
+Node web: 44 passed, 0 failed, 0 skipped
+Python public signing vectors: 6 verified
+Python release/acceptance/inspection unittest: 62 passed, 0 skipped
+
+Includes real PG/HTTP, 60-second Retry-After recovery, updated conformance,
+bounded reads/full-response oracle, sparse incremental publication, key-review
+CAS, current-key timestamp and legacy snapshot compatibility, WAL/PITR,
+failed-delivery/restart/concurrency, actual operator mute, and real TLS proxy
+32001/32768-byte acceptance and 32769-byte rejection.
+
+Full M1 demo: exit 0, 8 public messages, real rate-limit recovery, cleaned up.
+Full M2 demo: exit 0, 14 passed steps, controls/restart/key/restore/clear verified,
+  processes_stopped=true, own database and listeners cleaned up.
+Independent exact source checkout: cargo build --locked --workspace passed,
+  tolight/reference-client --help passed; private fixture commit/tag only.
+
+Acceptance index: exit 0, 21 criteria (14 local verified / 5 partial / 2 pending).
+Formal acceptance: exit 2, first_release_complete=false, no structural errors.
+Original preview: same URLs/database, 160 existing events preserved,
+  current source assets installed, public/health 200, unsigned self 401.
+
+Private records: .local/logs/audit-quality-gate.log, audit-source-rehearsal.log,
+  audit-demo-m1.log, audit-demo-m2.log, audit-preview-reload.json, audit-result.json.
+First full gate caught an old mtime-only backup fixture; it was synchronized to
+  the completion-marker contract before this successful full rerun.
+
+No production deployment, remote CI, real-model calls, external messages,
+formal repository commit/tag/release, or final first-release acceptance occurred.

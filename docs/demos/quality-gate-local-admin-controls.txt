@@ -1,0 +1,15 @@
+2026-11-16 full local quality gate
+Command: scripts/quality-gate.sh
+{
+  "exit": 0,
+  "rust_unique": 344,
+  "rust_executions": 345,
+  "default_source_lifecycle_rerun": 1,
+  "rust_failures": 0,
+  "rust_ignored": 0,
+  "typescript_tests": 90,
+  "typescript_failures": 0,
+  "independent_signing_vectors": 6
+}
+Passed: strict TypeScript check/build, fmt, isolated PG migration, workspace/all-targets/all-features Clippy -D warnings, workspace/all-targets tests, default-source lifecycle, SQLx prepare --check, cargo-deny, native TypeScript tests, independent signing vectors.
+Final profile-expansion/focus fix also received separate strict typecheck + both builds + all90 TypeScript tests. No new dependencies, migrations or ignored checks.

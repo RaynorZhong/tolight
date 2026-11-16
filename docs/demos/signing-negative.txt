@@ -1,0 +1,3 @@
+Signing-vector check failed: get-query: signature does not match
+Expected nonzero exit: 1
+Published JSON was not modified.

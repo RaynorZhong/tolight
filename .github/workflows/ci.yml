@@ -1,0 +1,25 @@
+name: Quality gate
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: quality
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086
+      - name: Run the pinned development environment
+        run: |
+          nix develop --no-write-lock-file --command npm ci --ignore-scripts --no-audit --no-fund
+          nix develop --no-write-lock-file --command scripts/quality-gate.sh

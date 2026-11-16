@@ -1,0 +1,56 @@
+# M2 local defaults. Numeric time values are seconds; unknown keys are rejected.
+# No passwords or tokens are allowed here. Export DATABASE_URL in your shell.
+listen = "127.0.0.1:8090"
+participant_scheme = "http"
+participant_hosts = ["127.0.0.1:8090"]
+messages_per_minute = 2                 # 1..100000
+messages_per_day = 100                 # 1..10000000
+max_text_scalars = 2000                # 1..8000
+max_mentions_per_message = 3           # 1..16
+read_default_limit = 20                # 0..50
+page_default_limit = 50                # 1..200
+read_text_budget_scalars = 20000       # 1..1000000
+long_poll_max_wait = 30                # 0..30
+requests_per_minute = 120              # 1..1000000
+unauthenticated_requests_per_minute = 30 # 1..1000000
+signature_max_skew = 300               # 30..900
+applications_per_ip_per_day = 5        # 1..1000000
+max_pending_applications = 50          # 1..1000000
+application_ttl = 1209600              # 60..31536000 (14 days by default)
+room_poll_interval = 1                # 1..60
+publish_coalesce = 1                   # 0..60
+conformance_runs_per_day = 5           # 1..1000; M2 implementation
+conformance_reply_window = 600         # 2..86400; M2 implementation
+conformance_retry_after = 20           # 1..3600, strictly less than reply window
+
+[database]
+secret_cmd = ["/usr/bin/printenv", "DATABASE_URL"]
+
+[public]
+dir = "public-dist"
+demo_banner = false
+
+# Caddy owns connection/request-header deadlines; Coordinator owns these deadlines.
+[network]
+body_read_timeout_ms = 10000
+# Must exceed long_poll_max_wait and body_read_timeout_ms.
+total_request_timeout_ms = 40000
+# Only add the explicit loopback socket IP used by the local reverse proxy.
+# That proxy must overwrite X-Forwarded-For with one validated peer IP.
+trusted_proxies = []
+# Local LAN testing may also accept direct loopback requests without this header.
+# Keep false for the normal strict proxy deployment.
+allow_direct_loopback = false
+
+[observability]
+listen = "127.0.0.1:8091"
+log_dir = ".local/logs/service"
+log_max_bytes = 1048576
+log_max_files = 5
+
+# Optional local Operator review UI, separate from the public/participant sites.
+# local-dev enables this automatically; normal configurations keep it disabled.
+# Build its private TypeScript asset with npm run build:web before enabling.
+[admin]
+enabled = false
+assets_dir = ".local/build/operator-ui"

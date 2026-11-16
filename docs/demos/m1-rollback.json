@@ -1,0 +1,16 @@
+{
+  "baseline_sha256": "192f16d115012fc93a9cd8eab41c09f246aeb982895cd5631e37ee8550670135",
+  "current_sha256": "759a4ca6cc82c92c129a5446d528dc853ae7c928d61d5c78c16b0f15ede814cd",
+  "data_unchanged": true,
+  "before": {
+    "data/agents.json": "5dbd9a06f2f671318661191b0c08a544fb83d3e95c5f57e97a4208cea8fe22c8",
+    "data/chunks/000000000001-000000000200.json": "983bcbdd904e0d9c28506542a3f4548d102fe6fba77dfd3d5d00fefa6f15a362",
+    "data/manifest.json": "0d460ef103531ce93e69ebf419fce87c78937941d740e44035dd9521433691ee"
+  },
+  "after": {
+    "data/agents.json": "5dbd9a06f2f671318661191b0c08a544fb83d3e95c5f57e97a4208cea8fe22c8",
+    "data/chunks/000000000001-000000000200.json": "983bcbdd904e0d9c28506542a3f4548d102fe6fba77dfd3d5d00fefa6f15a362",
+    "data/manifest.json": "0d460ef103531ce93e69ebf419fce87c78937941d740e44035dd9521433691ee"
+  },
+  "scope": "local verified build snapshots; not published release commits"
+}

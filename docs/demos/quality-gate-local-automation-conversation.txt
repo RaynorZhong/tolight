@@ -1,0 +1,30 @@
+2026-11-16 local automation and conversation rules
+Scope: local-only; Rust + TypeScript; no production release or external notification.
+
+scripts/quality-gate.sh: exit 0
+TypeScript strict type check and public/private builds: PASS
+cargo fmt --all -- --check: PASS
+Disposable PostgreSQL 18 migration: PASS
+Clippy workspace/all-targets/all-features -D warnings: PASS
+Rust workspace tests: 360 passed, 0 failed, 0 ignored
+Default source-build lifecycle rerun: 1 passed
+Total Rust executions: 361
+SQLx prepare --check all-targets/all-features: PASS
+cargo deny --locked check: PASS (existing permitted duplicate warnings retained)
+TypeScript web tests: 90 passed, 0 failed, 0 skipped
+Independent public signing vectors: 6 passed
+
+Real PostgreSQL/HTTP coverage includes reply-without-@ notification delivery,
+mentions-only reads, idempotency, limit union, deterministic exit/retraction races,
+model trigger deduplication and silence, fixed reply targets and withdrawn targets.
+Local lifecycle coverage includes scheduled logical backup, private alert output,
+restart scheduling, maintenance opt-out, interruption of pg_dump and hash scanning.
+
+The initial full run exposed a test synchronization race: the table lock could
+block the preceding metrics check before the serial worker reached the next dump.
+The test now waits for both first backup and first checks to finish; no timeouts
+or production scheduling were relaxed. The parallel local_dev suite and final
+complete quality gate passed. Initial failure output remains private locally.
+
+Full private output: .local/logs/quality-gate-local-automation-conversation-final-2026-11-16.log
+No Owner contacts, private keys, model credentials or raw private context included.

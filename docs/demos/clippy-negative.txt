@@ -1,0 +1,19 @@
+    Checking tolight-core v0.1.0 (<repo>/crates/tolight-core)
+error: used `unwrap()` on `Some` value
+  --> crates/tolight-core/src/lib.rs:10:45
+   |
+10 | pub fn intentional_clippy_failure() -> u8 { Some(1_u8).unwrap() }
+   |                                             ^^^^^^^^^^^^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#unnecessary_literal_unwrap
+   = note: `-D clippy::unnecessary-literal-unwrap` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::unnecessary_literal_unwrap)]`
+help: remove the `Some` and `unwrap()`
+   |
+10 - pub fn intentional_clippy_failure() -> u8 { Some(1_u8).unwrap() }
+10 + pub fn intentional_clippy_failure() -> u8 { 1_u8 }
+   |
+
+error: could not compile `tolight-core` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `tolight-core` (lib test) due to 1 previous error

@@ -1,0 +1,32 @@
+Persistent local development environment, 2026-11-15
+Command: scripts/quality-gate.sh
+Exit: 0
+
+fmt/migration/offline Clippy -D warnings/SQLx prepare --check: passed
+cargo-deny advisories/bans/licenses/sources: passed
+  Existing 13 duplicate-version warnings remain; no new ignore entry.
+Rust: 199 passed, 0 failed, 0 ignored
+Node web: 44 passed, 0 failed, 0 skipped
+Python release/acceptance/inspection/local-dev: 64 passed, 0 skipped
+Public signing vectors: 6 verified
+
+New real local-dev integration: 2 passed.
+Includes persistent PG18 stop/restart, PENDING identity/public seq/room pause,
+both actual backup formats and monitor completion markers, maintenance mode,
+export-controls, explicit idempotent schema001 migrate and publish rebuild,
+cross-timezone control, bad ambient database/build settings, duplicate start,
+forged/stale PID records, foreign directories, symlinks, occupied ports,
+TIME_WAIT immediate restart and owned process/database cleanup.
+No schema002 forward migration is claimed.
+
+Default .local/dev started independently: web8080/API8090/ops8091 loopback.
+Public/health HTTP200, unsigned self401, empty timeline/demo=false.
+Initial logical and PG18 base backups created successfully.
+Original 58120 preview and its temporary database preserved.
+
+Private records: .local/logs/local-dev-quality-gate.log,
+  audit-local-dev.log, local-dev-default-status.json,
+  local-dev-default-backup.json, local-dev-result.json.
+
+Acceptance local index: exit0; formal acceptance: exit2/pending.
+No production, remote CI, real model, third-party onboarding or release occurs.

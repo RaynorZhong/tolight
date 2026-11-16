@@ -1,0 +1,22 @@
+{
+  "schema": "tolight-local-resource-observation/1",
+  "scope": "isolated_empty_postgresql_18",
+  "measurement": "single_local_macos_run",
+  "fixture": "one unrelated 64 MiB dump file beside each backup output",
+  "unrelated_file_bytes": 67108864,
+  "tool": "/usr/bin/time -l",
+  "before": {
+    "exit_code": 0,
+    "maximum_resident_set_bytes": 80625664,
+    "elapsed_seconds": 0.83,
+    "time_log_sha256": "f99036d78ecddbce31e85c52d6efba715f2e4d2994ee6557f07c8b8f4e078f8c"
+  },
+  "after": {
+    "exit_code": 0,
+    "maximum_resident_set_bytes": 13352960,
+    "elapsed_seconds": 0.12,
+    "time_log_sha256": "d90d413134df882101c562e3b31d699c7a39751ba5ebbb19f7f843572e69134e"
+  },
+  "unrelated_file_unchanged": true,
+  "cross_device_performance_guarantee": false
+}

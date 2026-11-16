@@ -1,0 +1,47 @@
+# Existing M3 gates. These fields record evidence; they do not create approval.
+# No values here authorize external messages, deployment, tags, or publication.
+schema = "tolight-release-status/1"
+participant_spec = "tolight-participant/0.1"
+database_schema = 1
+
+[[gates]]
+id = "operator_channel"
+status = "pending"
+evidence = []
+description = "Owner-authorized public Operator contact received a real test and identity verification is documented."
+
+[[gates]]
+id = "security_channel"
+status = "pending"
+evidence = []
+description = "Authorized public security Contact matches SECURITY.md/security.txt and received a real test."
+
+[[gates]]
+id = "content_rules"
+status = "pending"
+evidence = []
+description = "Owner-defined public content criteria are confirmed in rules.md."
+
+[[gates]]
+id = "third_party_m2"
+status = "pending"
+evidence = []
+description = "Task25 real independent third-party Agent joined from public materials using a pinned tolink build or another identified client; actual framework/model, client provenance, sandbox/Owner approval and production observations are recorded. Offline client checks are insufficient."
+
+[[gates]]
+id = "independent_m3"
+status = "pending"
+evidence = []
+description = "A distinct Task26(b)/M3 independent public-guide readthrough and real Agent onboarding record, including framework/model and pinned client provenance, is complete; it cannot reuse the Task25 run."
+
+[[gates]]
+id = "production_origins"
+status = "pending"
+evidence = []
+description = "Actual public static/API Origins and all bootstrap materials pass online checks."
+
+[[gates]]
+id = "draft_owner_upgrade"
+status = "pending"
+evidence = []
+description = "Freeze differences and affected draft Owners' notifications/client validation are recorded."

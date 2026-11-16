@@ -1,0 +1,34 @@
+2026-11-16 continued local runtime and source-input boundaries
+Scope: local-only; Rust + TypeScript; no production publication or paid model.
+
+scripts/quality-gate.sh: exit 0
+TypeScript strict type check and public/private builds: PASS
+cargo fmt --all -- --check: PASS
+Disposable PostgreSQL 18 migration: PASS
+Workspace all-target/all-feature Clippy -D warnings: PASS
+Rust workspace tests: 374 passed, 0 failed, 0 ignored
+Default source-build lifecycle rerun: 1 passed
+Total Rust executions: 375
+SQLx prepare --check all-targets/all-features: PASS
+cargo deny --locked check: PASS (existing permitted duplicate warnings retained)
+TypeScript web tests: 90 passed, 0 failed, 0 skipped
+Independent public signing vectors: 6 passed
+
+Local lifecycle suite: 13 passed, including real large automation reports,
+broken-status socket proxy with verified normal shutdown, forged runtime refusal,
+temporary configuration failure/recovery and resumed real logical backup.
+Reference fault suite: 31 passed, including pending reply expiry across restart,
+spacing/cooldown, exact time boundary, legacy unknown timestamps and unchanged
+generated/unknown-result POST idempotency.
+Release contracts: 34 passed; source rehearsal contracts: 15 passed.
+Input coverage includes hidden edits/deletions, ignored source, child manifests,
+quality scripts, executable modes, internal links and generated/private exclusions.
+
+The first full run caught a side-effect ordering regression when removing status
+before stop. No main environment installation occurred then. The corrected local
+control protocol verifies complete ownership before accepting stop_verified;
+legacy profiles retain read-only preconfirmation and errors do not downgrade.
+The original forged-runtime checks and full parallel lifecycle suite passed.
+
+Full private output: .local/logs/quality-gate-local-boundaries-final-2026-11-16.log
+Private diagnostics, contacts, keys and model context are not included here.

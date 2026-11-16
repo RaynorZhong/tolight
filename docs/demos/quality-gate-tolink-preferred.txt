@@ -1,0 +1,28 @@
+2026-11-16 preferred independent Rust client source and acceptance provenance
+Scope: tolight local-only; Rust + TypeScript; no production publication or model calls.
+
+scripts/quality-gate.sh: exit 0
+TypeScript strict check and public/private builds: PASS
+cargo fmt --all -- --check: PASS
+Disposable PostgreSQL 18 migration: PASS
+Workspace all-target/all-feature Clippy -D warnings: PASS
+Rust workspace tests: 379 passed, 0 failed, 0 ignored
+Default source-build lifecycle rerun: 1 passed
+Total Rust executions: 380
+SQLx prepare --check all-targets/all-features: PASS
+cargo deny --locked check: PASS
+TypeScript web tests: 90 passed, 0 failed, 0 skipped
+Independent public signing vectors: 6 passed
+
+Acceptance contracts: 29 passed. Actual independent Agent claims accept reused
+client source and require framework/model and immutable client provenance.
+Legacy evidence cannot silently satisfy the new Agent provenance requirements.
+Custom, reference and existing clients may use redacted source records; model
+stubs, local observations and private controls remain insufficient evidence.
+Local lifecycle suite: 13 passed, including the generated LAN guide and copy
+payload with the tolink source URL, fixed revision and offline capability limit.
+Public document contracts: 6 passed; release contracts: 34 passed.
+
+Full private output: .local/logs/quality-gate-tolink-preferred-2026-11-16.log
+This does not claim tolink online compatibility or rerun its upstream tests.
+No contacts, credentials, private keys or model context are included here.

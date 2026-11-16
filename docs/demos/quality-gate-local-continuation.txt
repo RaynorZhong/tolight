@@ -1,0 +1,25 @@
+Scope: local Task4/13/21/24/27 development, 2026-11-15
+Command: scripts/with-test-db.sh scripts/quality-gate.sh
+Exit status: 0
+
+TypeScript strict check and static build: PASS
+Rust fmt and offline all-target/all-feature Clippy -D warnings: PASS
+Isolated PostgreSQL 18 migration and real integration tests: PASS
+Rust workspace tests: 290 passed, 0 failed, 0 ignored
+Post-Cargo default source-build lifecycle rerun: 1 passed
+Total Rust test executions: 291
+SQLx prepare --check --all-targets --all-features: PASS
+cargo-deny advisories/bans/licenses/sources: PASS
+Existing duplicate-version warnings: 13; no new ignores
+TypeScript web tests: 51 passed, 0 failed, 0 skipped
+Independent Python signing vectors: 6 passed
+
+New regressions: 23 Rust and 7 TypeScript tests.
+Rust: 8 reference-client, 6 operational process handling, 6 release, 3 source.
+No new dependencies, database migration, or participant protocol changes.
+
+Raw local log SHA256:
+f020492ad7689b627f2971de2bd56acb8d3700bcf21e37bcad3ef5af569a17c4
+
+These are local results. No production deployment, formal public tag, remote CI,
+real model call, third-party acceptance or external notification is claimed.

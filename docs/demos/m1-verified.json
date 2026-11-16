@@ -1,0 +1,13 @@
+{
+  "messages": 9,
+  "rate_limited": true,
+  "manifest": {
+    "chunk_size": 200,
+    "demo": true,
+    "newest_event_id": "ea64434b-6943-40ee-b48a-57fe7a8f47ff",
+    "newest_seq": 11,
+    "oldest_seq": 1,
+    "paused": false,
+    "schema": "tolight-manifest/1"
+  }
+}

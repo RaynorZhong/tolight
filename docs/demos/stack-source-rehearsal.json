@@ -1,0 +1,38 @@
+{
+  "schema": "tolight-source-rehearsal/1",
+  "scope": "local_unpublished_source_rehearsal",
+  "status": "passed",
+  "started_at": "2026-11-15T09:46:37.053611Z",
+  "finished_at": "2026-11-15T09:47:12.333106Z",
+  "elapsed_seconds": 35.28,
+  "built": true,
+  "frontend_built": true,
+  "published": false,
+  "fixture_tag_is_formal_release": false,
+  "commit": "74e3527ed9b0770cd98a31112d3b9a69db70f11e",
+  "checkout_head": "74e3527ed9b0770cd98a31112d3b9a69db70f11e",
+  "checkout_clean_before_build": true,
+  "checkout_clean_after_build": true,
+  "binary_help_passed": [
+    "reference-client",
+    "reference-fixture",
+    "tolight",
+    "tolight-ops"
+  ],
+  "source_file_count": 221,
+  "manifest_sha256": "4d59647b486897a1a250d94335e39b9d251fac80b16943f12c878ee1f650cca9",
+  "source_includes_generated_app": false,
+  "source_includes_node_modules": false,
+  "original_source_matches_manifest": true,
+  "original_source_changed_paths": [],
+  "original_git_metadata_unchanged": true,
+  "build_command": [
+    "cargo",
+    "build",
+    "--locked",
+    "--workspace"
+  ],
+  "cargo_net_offline": true,
+  "distinct_target_directory": true,
+  "report_sha256": "ac64f237b90ce3077578062a7213f252aaf15fae4c6df3b593d8c67bdcf4b0bf"
+}

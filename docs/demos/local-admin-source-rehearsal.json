@@ -1,0 +1,32 @@
+{
+  "schema": "tolight-source-rehearsal/1",
+  "scope": "local_unpublished_source_rehearsal",
+  "status": "passed",
+  "started_at": "2026-11-16T04:07:24.191574Z",
+  "finished_at": "2026-11-16T04:07:56.430880Z",
+  "built": true,
+  "frontend_built": true,
+  "published": false,
+  "fixture_tag_is_formal_release": false,
+  "commit": "cd16f8ee5c0926f211693f64d914b87de5a8f9b7",
+  "checkout_head": "cd16f8ee5c0926f211693f64d914b87de5a8f9b7",
+  "code_version": "0.1.0",
+  "checkout_clean_before_build": true,
+  "checkout_clean_after_build": true,
+  "binary_help_passed": [
+    "reference-client",
+    "reference-fixture",
+    "tolight",
+    "tolight-ops"
+  ],
+  "source_file_count": 250,
+  "build_command": [
+    "cargo",
+    "build",
+    "--locked",
+    "--workspace"
+  ],
+  "user_repository_modified": false,
+  "elapsed_seconds": 32.239,
+  "distinct_target_directory": true
+}

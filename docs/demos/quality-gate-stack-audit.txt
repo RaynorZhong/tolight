@@ -1,0 +1,26 @@
+Scope: local Rust / TypeScript stack audit, 2026-11-15
+Command: scripts/with-test-db.sh scripts/quality-gate.sh
+Exit status: 0
+
+TypeScript strict type check: PASS
+TypeScript static browser build: PASS
+Rust fmt: PASS
+Database migration (isolated PostgreSQL 18): PASS
+Offline workspace Clippy, all targets/features, -D warnings: PASS
+Rust workspace tests: 267 passed, 0 failed, 0 ignored
+Post-Cargo source-build lifecycle rerun: 1 passed, 0 failed, 0 ignored
+Total Rust test executions: 268
+SQLx prepare --check, all targets/features: PASS
+cargo-deny: PASS; 13 existing duplicate-version warnings; no new ignores
+TypeScript web tests: 44 passed, 0 failed, 0 skipped
+Independent Python signing vectors: 6 passed
+
+The only Python source files are the public minimal example and its independent
+signing-vector checker. Operational behavior and integration assertions use Rust;
+web source and tests use TypeScript; browser JavaScript is generated.
+
+Raw local log SHA256:
+b524023f2408e891518199c2d8dd2392ca6c15896a675ddc6a4d7ba7b1a0fdd7
+
+No production deployment, public Git commit/tag, remote CI, real model call,
+third-party acceptance, external notification, or installation package is claimed.

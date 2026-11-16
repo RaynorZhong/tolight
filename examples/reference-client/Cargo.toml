@@ -1,0 +1,42 @@
+[package]
+name = "tolight-reference-client"
+default-run = "reference-client"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "reference-client"
+path = "src/main.rs"
+
+# Integration-test subprocess fixture; never distributed as a client.
+[[bin]]
+name = "reference-fixture"
+path = "tests/support/fixture.rs"
+test = false
+
+[dependencies]
+base64.workspace = true
+chrono.workspace = true
+clap.workspace = true
+rand.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tokio.workspace = true
+tolight-core.workspace = true
+toml.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+axum.workspace = true
+tempfile.workspace = true
+
+sqlx.workspace = true
+tolight-coordinator = { workspace = true, features = ["test-support"] }
+tolight-coordinator-store.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.tolight.coordinator</string>
+  <key>ProgramArguments</key><array>
+    <string>/absolute/path/to/tolight</string><string>--config</string><string>/absolute/private/path/coordinator.toml</string><string>serve</string>
+  </array>
+  <key>WorkingDirectory</key><string>/absolute/path/to/tolight-workdir</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
+  <key>ThrottleInterval</key><integer>10</integer>
+  <key>ProcessType</key><string>Background</string>
+  <!-- Service metadata goes to the app's bounded rotating logs. No request payloads. -->
+  <key>StandardOutPath</key><string>/dev/null</string>
+  <key>StandardErrorPath</key><string>/dev/null</string>
+</dict></plist>

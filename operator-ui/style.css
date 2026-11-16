@@ -1,0 +1,80 @@
+:root { color-scheme: light; color: #29352f; background: #f7f8f3; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; font-synthesis: none; -webkit-font-smoothing: antialiased; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; }
+button, select { font: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: default; opacity: .48; }
+button:focus-visible, select:focus-visible, [tabindex]:focus-visible { outline: 3px solid #7c9e69; outline-offset: 4px; }
+.admin-shell { max-width: 1060px; margin: 0 auto; padding: 0 32px; }
+.masthead { min-height: 92px; display: flex; align-items: center; justify-content: space-between; gap: 20px; border-bottom: 1px solid #dfe5d7; }
+.brand { color: #3f5837; font-size: 28px; font-weight: 750; letter-spacing: -1px; }
+.brand span { color: #7a9368; }
+.local-badge { border: 1px solid #d7e0cd; border-radius: 20px; padding: 7px 12px; color: #4e6b43; font-size: 12px; background: #edf2e6; white-space: nowrap; }
+.intro { padding: 37px 0 25px; }
+.eyebrow { margin: 0 0 13px; color: #667b58; font-size: 10px; font-weight: 650; letter-spacing: 1.8px; }
+h1 { margin: 0; font-size: clamp(25px, 5vw, 34px); font-weight: 650; letter-spacing: -.7px; }
+h2 { margin: 0; font-size: 19px; color: #3d5235; overflow-wrap: anywhere; }
+.count { display: inline-block; margin-left: 7px; padding: 2px 10px; border-radius: 7px; font-size: 21px; background: #e7eddf; color: #58744a; vertical-align: middle; }
+.intro > p:not(.eyebrow) { margin: 12px 0 0; color: #65735b; font-size: 13px; line-height: 1.8; }
+.intro .privacy-note { font-size: 11px; color: #7a846f; }
+.toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 17px 0; border-top: 1px solid #dfe5d7; border-bottom: 1px solid #dfe5d7; margin-bottom: 23px; }
+.status { margin: 0; color: #4c6641; font-size: 13px; line-height: 1.8; }
+.status[data-state="error"] { color: #97582e; }
+.updated-at { margin: 4px 0 0; color: #7e8972; font-size: 11px; }
+.button { padding: 10px 17px; border: 1px solid #bdcbb0; border-radius: 6px; font-size: 12px; line-height: 1.4; white-space: nowrap; }
+.button.primary { background: #537347; color: #fff; border-color: #537347; }
+.button.primary:hover:not(:disabled) { background: #416236; }
+.button.secondary { background: #f9fbf5; color: #526649; }
+.button.secondary:hover:not(:disabled) { background: #eaf0e2; }
+.pending-list { display: grid; gap: 21px; }
+.agent-card, .review-panel { padding: 24px; border: 1px solid #dbe3d1; background: #fffefa; border-radius: 10px; }
+.card-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 23px; }
+.sandbox { border-radius: 20px; padding: 6px 10px; background: #f3ebdc; color: #856337; font-size: 11px; line-height: 1.6; }
+.sandbox.passed { background: #edf3e5; color: #526d40; }
+.agent-details { display: grid; grid-template-columns: 105px minmax(0, 1fr); row-gap: 11px; column-gap: 17px; margin: 0; font-size: 12px; line-height: 1.8; }
+.agent-details dt { color: #7a856e; }
+.agent-details dd { margin: 0; color: #3f4c39; white-space: pre-wrap; overflow-wrap: anywhere; }
+.mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11px; }
+.card-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 23px; padding-top: 17px; border-top: 1px solid #e8ecdf; }
+.action-note { color: #7f816a; font-size: 11px; line-height: 1.7; }
+.review-panel { border: 2px solid #8aa375; background: #f0f5e9; margin-bottom: 23px; }
+.review-description { color: #566c49; font-size: 13px; line-height: 1.8; margin: 15px 0 23px; }
+.reason-field { display: flex; align-items: center; gap: 15px; margin-top: 21px; font-size: 12px; color: #4c6041; }
+select { padding: 9px 28px 9px 12px; background: #fffefa; border: 1px solid #bdcbb0; border-radius: 5px; color: #3f4c39; }
+.empty-state { padding: 53px 14px; text-align: center; color: #6d7e61; font-size: 13px; line-height: 1.9; }
+footer { margin-top: 35px; border-top: 1px solid #dfe5d7; padding: 22px 0 28px; color: #829073; font-size: 11px; line-height: 1.8; }
+@media (max-width: 640px) {
+  .admin-shell { padding: 0 18px; }
+  .masthead { min-height: 76px; }
+  .brand { font-size: 25px; }
+  .local-badge { font-size: 10px; padding: 6px 9px; }
+  .intro { padding-top: 28px; }
+  .card-heading { align-items: flex-start; flex-direction: column; gap: 12px; }
+  .agent-card, .review-panel { padding: 19px 16px; }
+  .agent-details { grid-template-columns: 84px minmax(0, 1fr); column-gap: 12px; font-size: 11px; }
+  .toolbar { align-items: flex-start; }
+  .button { padding: 10px 13px; }
+}
+
+h3 { margin: 0; color: #3d5235; font-size: 18px; overflow-wrap: anywhere; }
+.agent-section { margin-top: 30px; }
+.section-heading { margin-bottom: 16px; }
+.section-heading .count { font-size: 15px; }
+.presence-note { color: #738069; font-size: 11px; line-height: 1.8; margin: -3px 0 17px; }
+.active-list { display: grid; gap: 16px; }
+.active-card .card-heading { margin-bottom: 12px; }
+.agent-handle { margin: 7px 0 0; color: #7d896f; font-size: 11px; }
+.agent-badges { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.presence { display: inline-flex; gap: 6px; align-items: center; font-size: 11px; border-radius: 20px; padding: 6px 10px; background: #eef0eb; color: #6e7966; }
+.presence::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.presence.online { color: #4b773d; background: #edf3e5; }
+.presence.offline { color: #7a756c; background: #f1efe9; }
+.agent-connection { margin: 8px 0 0; color: #718066; font-size: 11px; line-height: 1.8; }
+.profile-details { border-top: 1px solid #e8ecdf; margin-top: 19px; padding-top: 14px; }
+.profile-details summary { color: #6a7a5f; cursor: pointer; font-size: 11px; padding: 4px 0; }
+.profile-details[open] summary { margin-bottom: 16px; }
+.button.danger { border-color: #d1b7aa; background: #fff6ef; color: #8c4b37; }
+.button.danger:hover:not(:disabled) { background: #f5e7df; }
+.agent-section .empty-state { padding: 25px 14px; }
+summary:focus-visible { outline: 3px solid #7c9e69; outline-offset: 4px; }

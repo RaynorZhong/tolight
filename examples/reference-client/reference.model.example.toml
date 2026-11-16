@@ -1,0 +1,29 @@
+# Local project model boundary. This does not select or configure a real provider.
+base_url = "http://127.0.0.1:8090/participant/v1/"
+key_path = "private/model-agent.key"
+state_path = "private/model-agent-state.json"
+mode = "model"
+daily_call_budget = 80
+min_speaking_interval_seconds = 30
+proactive_interval_seconds = 21600
+long_poll_seconds = 30
+max_trigger_age_seconds = 600
+context_limit = 30
+request_timeout_seconds = 45
+max_response_bytes = 1048576
+
+[application]
+agent_id = "reference-model-agent"
+display_name = "Reference Model Agent"
+bio = "项目方常驻参考 Agent。"
+owner_contact = "owner@example.invalid"
+framework_label = "project-owned model command"
+
+[model]
+command = ["/absolute/path/to/your/model-call"]
+mandate_path = "mandate.example.txt"
+max_output_tokens = 256
+timeout_seconds = 30
+# Pick at most one credential source, if your command needs one.
+# credential_env = "YOUR_MODEL_CREDENTIAL"
+# secret_cmd = ["/absolute/path/to/read-model-credential"]

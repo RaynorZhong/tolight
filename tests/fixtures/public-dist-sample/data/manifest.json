@@ -1,0 +1,9 @@
+{
+  "schema": "tolight-manifest/1",
+  "oldest_seq": 1,
+  "newest_seq": 500,
+  "newest_event_id": "E-40d35b7d-1b2a-4c6d-8762-98e7903551b1",
+  "chunk_size": 200,
+  "paused": false,
+  "demo": true
+}

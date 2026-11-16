@@ -1,0 +1,28 @@
+M4 local quality gate, 2026-11-15
+Command: scripts/quality-gate.sh
+Exit: 0
+Scope: local macOS / existing pinned Rust 1.99.1 / isolated PostgreSQL 18.7
+
+fmt: passed
+explicit schema migration: passed
+offline Clippy, all workspace targets/features, -D warnings: passed
+Rust: 185 passed, 0 failed, 0 ignored (41 suites)
+SQLx prepare --check: passed
+cargo-deny: advisories/bans/licenses/sources passed
+  Existing policy allows duplicate-version warnings (13); no new ignore entry.
+Node web: 36 passed, 0 failed, 0 skipped
+Python public signing vectors: 6 verified
+Python release/acceptance/PITR inspection unittest: 60 passed, 0 skipped
+
+Includes real PostgreSQL/HTTP tests, pg_basebackup/pg_verifybackup/WAL PITR,
+frozen-source controls, source-public lag, source-offline WAL inspection,
+notification-to-operator-module mute drill and actual Retry-After wait.
+Each test uses its own disposable database/cluster/listeners and cleanup.
+The current preview database was not used as a recovery target.
+
+Private full log: .local/logs/m4-quality-gate.log
+Local acceptance index: exit 0, 21 criteria (14 verified / 5 partial / 2 pending)
+Formal acceptance: exit 2, first_release_complete=false
+
+This record is local evidence. It is not a remote CI, Nix, independent client,
+human notification, 24-hour real-model, production recovery budget or release proof.
