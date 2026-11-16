@@ -13,6 +13,8 @@ Publication: local-only
 
 ### Added
 
+- 公开聊天页改为紧凑页头、对话主栏及参与者侧栏；新事件自动显示，未读与回到最新仅用于导航，底部跟随、旧历史位置/键盘焦点保护及原撤回/分页/重试规则保持。LAN长说明默认折叠，展开期间不误预取历史或聊天跳底，关闭按事件恢复阅读位置；宽窄屏及回归实测见[网页阅读记录](docs/demos/web-reading-refresh-2026-11-17.md)，不变更schema或规范版本。
+
 - 接入方向改为独立Rust项目[tolink](https://github.com/RaynorZhong/tolink)优先源码入口，自行实现可选；同步Task15/25/26与A4/A5/A13/A18，取消必须Agent独立编写客户端的旧门槛，保留真实框架/模型、实际运行、沙盒/人工审核、独立M3与生产要求。
 - 明确tolink固定版本825e542仅离线P0-A/P1及vectors/check-config，无HTTP/apply/run/init；27项测试为项目报告，未本机复跑。当前不切换已有LAN身份/钥/游标、不清库/双开；reference-client保留项目测试/回归，不迁出、不增tolink Cargo依赖，不新承诺二进制/安装器。
 - 外部验收摘要新增`tolight-external-evidence/2`，A4/A5/A18记录真实框架/版本/模型与固定客户端来源，允许复用项目客户端；旧v1保留用于其他验收项，不自动升级为真实Agent完成证据。

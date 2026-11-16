@@ -201,11 +201,12 @@ class MiniDocument extends Element {
   createdTags: string[] = [];
   activeElement: Element | null = null;
   body = new Element("body");
-  elements = new Map(["demo-banner", "pause-notice", "connection-status", "empty-state", "load-earlier", "history-status", "new-messages", "timeline", "participant-count", "participants", "participant-details"].map((id) => [id, new Element("div")]));
+  elements = new Map(["demo-banner", "pause-notice", "connection-status", "empty-state", "load-earlier", "history-status", "new-messages", "timeline", "participant-count", "participants", "participant-details", "lan-join"].map((id) => [id, new Element("div")]));
   documentElement: { readonly scrollHeight: number };
   constructor() {
     super("document");
     for (const node of this.elements.values()) node.ownerDocument = this;
+    this.getElementById("lan-join").hidden = true;
     const owner = this;
     this.documentElement = { get scrollHeight() { return 600 + owner.getElementById("timeline").children.length * 80; } };
   }
@@ -224,6 +225,7 @@ class MiniDocument extends Element {
 }
 const miniDocument = () => new MiniDocument();
 class MiniWindow extends Element {
+  innerHeight = 800;
   scrollY = 0;
   scrolls: ScrollToOptions[] = [];
   tick: (() => unknown) | null = null;
@@ -335,7 +337,7 @@ for (const head of [1, 199, 200, 201, 250, 400, 450, 500]) {
   });
 }
 
-test("empty timeline avoids chunk requests and can later receive its first pending event", async () => {
+test("empty timeline avoids chunk requests and displays its first new event immediately", async () => {
   const source = server(0);
   const controller = controllerFor(source);
   await controller.refresh();
@@ -345,9 +347,9 @@ test("empty timeline avoids chunk requests and can later receive its first pendi
   source.head = 1;
   await controller.refresh();
   assert.equal(controller.snapshot().newEventCount, 1);
-  assert.deepEqual(visibleSeqs(controller), []);
-  controller.revealNew();
   assert.deepEqual(visibleSeqs(controller), [1]);
+  controller.markRead();
+  assert.equal(controller.snapshot().newEventCount, 0);
 });
 
 test("future rows in an unfinished chunk are bounded by the current manifest", async () => {
@@ -358,21 +360,22 @@ test("future rows in an unfinished chunk are bounded by the current manifest", a
   assert.equal(controller.snapshot().cursor!.seq, 450);
 });
 
-test("pending new events do not merge until the reader explicitly reveals them", async () => {
+test("new events immediately join the visible history and read acknowledgement only clears their count", async () => {
   const source = server();
   const controller = controllerFor(source);
   await controller.refresh();
   await controller.loadEarlier();
-  const visible = visibleSeqs(controller);
   source.head = 901;
   await controller.refresh();
-  assert.deepEqual(visibleSeqs(controller), visible);
+  assert.deepEqual(visibleSeqs(controller), range(201, 901));
   assert.equal(controller.snapshot().newEventCount, 401);
   assert.equal(controller.snapshot().cursor!.seq, 901);
   assert.ok(source.calls.includes(chunkPath(601)) && source.calls.includes(chunkPath(801)));
-  controller.revealNew();
+  const revision = controller.snapshot().timelineRevision;
+  controller.markRead();
   assert.deepEqual(visibleSeqs(controller), range(201, 901));
   assert.equal(controller.snapshot().newEventCount, 0);
+  assert.equal(controller.snapshot().timelineRevision, revision);
 });
 
 test("a failed update preserves messages and cursor, then retries all missing chunks", async () => {
@@ -441,7 +444,7 @@ test("metadata changes update paused/demo flags and the participant list without
   assert.equal(controller.snapshot().newEventCount, 0);
 });
 
-test("reset to a smaller head discards caches, pending events, and late old history responses", async () => {
+test("reset to a smaller head discards caches, unread events, and late old history responses", async () => {
   const source = server();
   const controller = controllerFor(source);
   await controller.refresh();
@@ -456,7 +459,7 @@ test("reset to a smaller head discards caches, pending events, and late old hist
   assert.deepEqual(visibleSeqs(controller), range(1, 5));
   assert.ok(controller.snapshot().visibleEvents.every((event) => event.event_id.startsWith("restored-")));
   assert.equal(controller.snapshot().eventsBySeq.size, 5);
-  assert.equal(controller.snapshot().pendingEvents.length, 0);
+  assert.equal(controller.snapshot().unreadEvents.length, 0);
   assert.equal(controller.snapshot().retractedSeqs.size, 0);
 });
 
@@ -484,7 +487,7 @@ test("same sequence with a different head event also resets the timeline", async
   assert.ok(controller.snapshot().visibleEvents.every((event) => event.event_id.startsWith("replacement-")));
 });
 
-test("a retraction is immediate for visible content and reply previews before revealing new events", async () => {
+test("a retraction immediately updates visible content, reply previews and the new timeline row", async () => {
   const source = server();
   source.events.find((event) => event.seq === 490)!.reply_to = { seq: 480, event_id: source.events[479].event_id };
   const controller = controllerFor(source);
@@ -498,7 +501,7 @@ test("a retraction is immediate for visible content and reply previews before re
   const view = eventViewModel(snapshot.eventsBySeq.get(490)!, snapshot.eventsBySeq, snapshot.retractedSeqs)!;
   assert.equal(view.reply!.text, "已撤回");
   assert.equal(snapshot.newEventCount, 1);
-  assert.equal(visibleSeqs(controller).at(-1), 500);
+  assert.equal(visibleSeqs(controller).at(-1), 501);
 });
 
 test("late original content cannot resurrect a retracted reply target", async () => {
@@ -519,22 +522,43 @@ test("late original content cannot resurrect a retracted reply target", async ()
   assert.equal(snapshot.eventsBySeq.get(100)!.text, undefined);
   assert.equal(snapshot.eventsBySeq.get(100)!.retracted, true);
   assert.equal(eventViewModel(snapshot.eventsBySeq.get(400)!, snapshot.eventsBySeq, snapshot.retractedSeqs)!.reply!.text, "已撤回");
-  assert.deepEqual(visibleSeqs(controller), range(301, 500));
+  assert.deepEqual(visibleSeqs(controller), range(301, 501));
 });
 
-test("a pending message can be retracted without briefly showing its original body", async () => {
+test("a newly displayed unread message is replaced by its tombstone on retraction", async () => {
   const source = server();
   const controller = controllerFor(source);
   await controller.refresh();
   source.head = 501;
   await controller.refresh();
+  assert.equal(controller.snapshot().visibleEvents.at(-1)!.seq, 501);
   source.events[500] = { ...source.events[500], text: undefined, retracted: true, mentions: [] };
   source.events[501] = message(502, { kind: "event_retracted", target: { seq: 501, event_id: source.events[500].event_id }, reason_code: "owner_request" });
   source.head = 502;
   await controller.refresh();
-  assert.equal(controller.snapshot().pendingEvents.find((event) => event.seq === 501)!.text, undefined);
-  controller.revealNew();
+  assert.equal(controller.snapshot().unreadEvents.find((event) => event.seq === 501)!.text, undefined);
+  controller.markRead();
   assert.equal(controller.snapshot().visibleEvents.find((event) => event.seq === 501)!.text, undefined);
+});
+
+test("a retraction received in the arrival batch never exposes the original message body", async () => {
+  const source = server();
+  const controller = controllerFor(source);
+  await controller.refresh();
+  source.events[500] = message(501, { text: "original body must not flash" });
+  source.events[501] = message(502, {
+    kind: "event_retracted", target: { seq: 501, event_id: source.events[500].event_id }, reason_code: "owner_request",
+  });
+  source.head = 502;
+  const seen: (string | undefined)[] = [];
+  const stop = controller.subscribe((snapshot) => {
+    if (snapshot.visibleEvents.some((event) => event.seq === 501)) seen.push(snapshot.eventsBySeq.get(501)!.text);
+  });
+  await controller.refresh();
+  assert.ok(seen.length > 0);
+  assert.ok(seen.every((text) => text === undefined));
+  assert.equal(visibleSeqs(controller).at(-1), 502);
+  stop();
 });
 
 test("loading a reply target does not move the history boundary or consumption cursor", async () => {
@@ -647,7 +671,7 @@ test("rendering long history also avoids the JavaScript argument-count limit", (
   const document = miniDocument();
   const head = 131072;
   renderApp(document, {
-    manifest: fixtureManifest, cursor: null, generation: 0, timelineRevision: 0, pendingEvents: [], loaded: true, connection: "live",
+    manifest: fixtureManifest, cursor: null, generation: 0, timelineRevision: 0, unreadEvents: [], loaded: true, connection: "live",
     historyLoading: false, historyComplete: true, newEventCount: 0,
     visibleEvents: range(1, head).map((seq) => message(seq, { kind: "room_paused" })),
     eventsBySeq: new Map(), retractedSeqs: new Set(), participants: [],
@@ -658,7 +682,7 @@ test("rendering long history also avoids the JavaScript argument-count limit", (
   assert.equal(nodes.at(-1)!.dataset.seq, String(head));
 });
 
-test("unchanged polls, participant metadata, and pending messages reuse visible views with real Intl", async () => {
+test("unchanged polls and read acknowledgement reuse views while arrivals format only the new row", async () => {
   await withDateFormatCounts(async (counts) => {
     const source = server();
     source.events = range(1, 1200).map((seq) => message(seq));
@@ -675,17 +699,19 @@ test("unchanged polls, participant metadata, and pending messages reuse visible 
       source.paused = true;
       source.participants[0].bio = "updated public biography";
       await controller.refresh();
+      assert.equal(counts.formats, 400);
+      assert.equal(timeline.replaceCount, replacements);
       source.head = 501;
       await controller.refresh();
       controller.emit();
-      assert.equal(counts.formats, 400);
-      assert.equal(timeline.replaceCount, replacements);
+      assert.equal(counts.formats, 402);
+      assert.equal(timeline.replaceCount, replacements + 1);
       assert.equal(document.getElementById("pause-notice").hidden, false);
       assert.ok(document.getElementById("participants").textContent.includes("updated public biography"));
-      assert.equal(controller.snapshot().newEventCount, 1);
+      assert.equal(controller.snapshot().newEventCount, 0);
       assert.ok(counts.constructors - initialConstructors <= 5, "polling checks the time zone, not one formatter per row");
-      controller.revealNew();
-      assert.equal(counts.formats, 402, "only the newly revealed row needs date/time formatting");
+      controller.markRead();
+      assert.equal(counts.formats, 402, "only the arriving row needs date/time formatting");
       assert.equal(timeline.replaceCount, replacements + 1);
     } finally {
       mounted.destroy();
@@ -737,12 +763,12 @@ test("reply loading and retractions invalidate only the affected cached views", 
       source.events[500] = message(501, { kind: "event_retracted", target, reason_code: "other" });
       source.head = 501;
       await controller.refresh();
-      assert.equal(counts.formats, 1006, "only the target and the reply preview change");
+      assert.equal(counts.formats, 1008, "only the target, reply preview and new retraction row change");
       const rows = document.getElementById("timeline").children;
       assert.ok(rows.find((row) => row.dataset.seq === "100")!.textContent.includes("已撤回"));
       assert.ok(rows.find((row) => row.dataset.seq === "400")!.textContent.includes("↳ 已撤回"));
       assert.equal(await controller.loadReply(target), null);
-      assert.equal(counts.formats, 1006);
+      assert.equal(counts.formats, 1008);
     } finally {
       mounted.destroy();
     }
@@ -766,10 +792,10 @@ test("a late original reply body cannot invalidate the cached retracted preview"
       source.events[500] = message(501, { kind: "event_retracted", target, reason_code: "other" });
       source.head = 501;
       await controller.refresh();
-      assert.equal(counts.formats, 402);
+      assert.equal(counts.formats, 404);
       release();
       await oldReply;
-      assert.equal(counts.formats, 402, "the masked original target is irrelevant to a retracted preview");
+      assert.equal(counts.formats, 404, "the masked original target is irrelevant to a retracted preview");
       assert.ok(document.getElementById("timeline").children.find((row) => row.dataset.seq === "400")!.textContent.includes("↳ 已撤回"));
       assert.equal(controller.snapshot().eventsBySeq.get(100)!.text, undefined);
     } finally {
@@ -922,7 +948,7 @@ test("DOM renders untrusted content literally, all known state kinds, dates, and
   assert.equal(document.getElementById("history-status").textContent, "没有更早消息");
 });
 
-test("mounted UI keeps old reading position, exposes the new-message action, and pauses hidden-tab polling", async () => {
+test("mounted UI appends arrivals without moving the history reader and only offers latest navigation", async () => {
   const source = server();
   const controller = controllerFor(source);
   const document = miniDocument();
@@ -936,18 +962,288 @@ test("mounted UI keeps old reading position, exposes the new-message action, and
   source.head = 501;
   await controller.refresh();
   assert.equal(window.scrolls.length, 0);
-  assert.equal(document.getElementById("timeline").replaceCount, renderCount);
+  assert.equal(document.getElementById("timeline").replaceCount, renderCount + 1);
+  assert.equal(document.getElementById("timeline").children.at(-1)!.dataset.seq, "501");
   assert.equal(document.getElementById("new-messages").hidden, false);
-  assert.equal(document.getElementById("new-messages").textContent, "有 1 条新消息 ↓");
+  assert.equal(document.getElementById("new-messages").textContent, "回到最新 · 1 条新动态 ↓");
   document.getElementById("new-messages").dispatch("click");
   assert.equal(window.scrolls.length, 1);
   assert.equal(controller.snapshot().newEventCount, 0);
+  assert.equal(document.getElementById("timeline").replaceCount, renderCount + 1);
   const count = source.calls.length;
   document.hidden = true;
   window.tick!();
   assert.equal(source.calls.length, count);
   mounted.destroy();
   assert.equal(window.tick, null);
+});
+
+test("arrivals automatically follow a reader near the bottom without a reveal click", async () => {
+  const source = server();
+  const controller = controllerFor(source);
+  const document = miniDocument();
+  const window = miniWindow();
+  const mounted = mountApp({ document, window, controller });
+  await mounted.ready;
+  window.scrollY = document.documentElement.scrollHeight - window.innerHeight - 32;
+  window.scrolls = [];
+  const renders = document.getElementById("timeline").replaceCount;
+  source.head = 503;
+  await controller.refresh();
+  assert.deepEqual(visibleSeqs(controller), range(301, 503));
+  assert.equal(document.getElementById("timeline").children.at(-1)!.dataset.seq, "503");
+  assert.deepEqual(window.scrolls, [{ top: document.documentElement.scrollHeight, behavior: "auto" }]);
+  assert.equal(controller.snapshot().newEventCount, 0);
+  assert.equal(document.getElementById("new-messages").hidden, true);
+  assert.equal(document.getElementById("timeline").replaceCount, renders + 1);
+  mounted.destroy();
+});
+
+test("latest following uses the message timeline rather than the footer below it", async () => {
+  const source = server();
+  const controller = controllerFor(source);
+  const document = miniDocument();
+  const window = miniWindow();
+  const footerHeight = 180;
+  Object.assign(document.getElementById("timeline"), {
+    getBoundingClientRect: () => ({ bottom: document.documentElement.scrollHeight - footerHeight - window.scrollY }),
+  });
+  const latestPosition = () => document.documentElement.scrollHeight - footerHeight - window.innerHeight + 24;
+  const mounted = mountApp({ document, window, controller });
+  await mounted.ready;
+  assert.equal(window.scrollY, latestPosition());
+  window.scrollY = document.documentElement.scrollHeight - footerHeight - window.innerHeight;
+  window.scrolls = [];
+  source.head = 501;
+  await controller.refresh();
+  assert.equal(document.getElementById("timeline").children.at(-1)!.dataset.seq, "501");
+  assert.deepEqual(window.scrolls, [{ top: latestPosition(), behavior: "auto" }]);
+  assert.equal(controller.snapshot().newEventCount, 0);
+  assert.equal(document.getElementById("new-messages").hidden, true);
+  window.scrollY = 700;
+  await window.dispatch("scroll");
+  window.scrolls = [];
+  await document.getElementById("new-messages").dispatch("click");
+  assert.deepEqual(window.scrolls, [{ top: latestPosition(), behavior: "auto" }]);
+  mounted.destroy();
+});
+
+test("scrolling to the latest acknowledges already displayed arrivals without rebuilding them", async () => {
+  const source = server();
+  const controller = controllerFor(source);
+  const document = miniDocument();
+  const window = miniWindow();
+  const mounted = mountApp({ document, window, controller });
+  await mounted.ready;
+  window.scrollY = 700;
+  source.head = 501;
+  await controller.refresh();
+  const renders = document.getElementById("timeline").replaceCount;
+  assert.equal(controller.snapshot().newEventCount, 1);
+  window.scrollY = document.documentElement.scrollHeight - window.innerHeight;
+  await window.dispatch("scroll");
+  assert.equal(controller.snapshot().newEventCount, 0);
+  assert.equal(document.getElementById("new-messages").hidden, true);
+  assert.equal(document.getElementById("timeline").replaceCount, renders);
+  mounted.destroy();
+});
+
+test("a focused reply near the bottom keeps its focus and position while arrivals still appear", async () => {
+  const source = server();
+  source.events[499] = message(500, { reply_to: { seq: 490, event_id: source.events[489].event_id } });
+  const controller = controllerFor(source);
+  const document = miniDocument();
+  const window = miniWindow();
+  const mounted = mountApp({ document, window, controller });
+  await mounted.ready;
+  window.scrollY = document.documentElement.scrollHeight - window.innerHeight;
+  window.scrolls = [];
+  replyButton(document, 500).focus();
+  source.head = 501;
+  await controller.refresh();
+  assert.equal(document.activeElement, replyButton(document, 500));
+  assert.equal(visibleSeqs(controller).at(-1), 501);
+  assert.deepEqual(window.scrolls, []);
+  assert.equal(controller.snapshot().newEventCount, 1);
+  mounted.destroy();
+});
+
+test("a focused participant summary at the bottom keeps its position while arrivals still appear", async () => {
+  const source = server();
+  const controller = controllerFor(source);
+  const document = miniDocument();
+  const window = miniWindow();
+  const summary = document.createElement("summary");
+  document.getElementById("participant-details").appendChild(summary);
+  const mounted = mountApp({ document, window, controller });
+  await mounted.ready;
+  window.scrollY = document.documentElement.scrollHeight - window.innerHeight;
+  const position = window.scrollY;
+  window.scrolls = [];
+  summary.focus();
+  source.head = 501;
+  await controller.refresh();
+  assert.equal(document.activeElement, summary);
+  assert.equal(document.getElementById("timeline").children.at(-1)!.dataset.seq, "501");
+  assert.equal(window.scrollY, position);
+  assert.deepEqual(window.scrolls, []);
+  assert.equal(controller.snapshot().newEventCount, 1);
+  mounted.destroy();
+});
+
+test("expanded LAN instructions prevent automatic follow even in a short room", async () => {
+  const source = server(1);
+  const controller = controllerFor(source);
+  const document = miniDocument();
+  const window = miniWindow();
+  const mounted = mountApp({ document, window, controller });
+  await mounted.ready;
+  document.getElementById("lan-join").hidden = false;
+  window.scrollY = 0;
+  window.scrolls = [];
+  source.head = 2;
+  await controller.refresh();
+  assert.deepEqual(visibleSeqs(controller), [1, 2]);
+  assert.deepEqual(window.scrolls, []);
+  assert.equal(window.scrollY, 0);
+  assert.equal(controller.snapshot().newEventCount, 1);
+  mounted.destroy();
+});
+
+test("opening LAN instructions near the page top does not trigger automatic history loading", async () => {
+  const source = server();
+  const controller = controllerFor(source);
+  const fixture = lanJoinFixture();
+  const document = fixture.document;
+  const window = miniWindow();
+  Object.assign(document.getElementById("lan-join"), {
+    scrollIntoView() { window.scrollY = 80; void window.dispatch("scroll"); },
+  });
+  const join = mountLanJoin({
+    document: document as unknown as Document,
+    window: window as unknown as Window,
+    fetchJson: async () => fixture.payload,
+  });
+  await join.ready;
+  const mounted = mountApp({ document, window, controller });
+  await mounted.ready;
+  window.scrollY = 1400;
+  await window.dispatch("scroll");
+  const calls = source.calls.length;
+  await document.getElementById("lan-join-open").dispatch("click");
+  assert.deepEqual(visibleSeqs(controller), range(301, 500));
+  assert.equal(source.calls.length, calls);
+  assert.equal(window.scrollY, 80);
+  source.head = 501;
+  await controller.refresh();
+  assert.equal(visibleSeqs(controller).at(-1), 501);
+  assert.equal(window.scrollY, 80);
+  await document.getElementById("lan-join-open").dispatch("click");
+  assert.equal(window.scrollY, 1400);
+  join.destroy();
+  mounted.destroy();
+});
+
+test("an already requested history page does not pull an expanded LAN panel away", async () => {
+  const source = server();
+  const controller = controllerFor(source);
+  const document = miniDocument();
+  const window = miniWindow();
+  const mounted = mountApp({ document, window, controller });
+  await mounted.ready;
+  await controller.loadEarlier();
+  const release = source.deferNext(chunkPath(1));
+  const history = controller.loadEarlier();
+  document.getElementById("lan-join").hidden = false;
+  window.scrollY = 80;
+  window.scrolls = [];
+  release();
+  await history;
+  assert.deepEqual(visibleSeqs(controller), range(1, 500));
+  assert.equal(window.scrollY, 80);
+  assert.ok(window.scrolls.every((position) => position.top === 80));
+  mounted.destroy();
+});
+
+for (const tag of ["summary", "button"]) {
+  test(`focusing a ${tag} near the page top does not interrupt it with automatic history loading`, async () => {
+    const source = server();
+    const controller = controllerFor(source);
+    const document = miniDocument();
+    const window = miniWindow();
+    const control = document.createElement(tag);
+    if (tag === "summary") document.getElementById("participant-details").appendChild(control);
+    else document.elements.set("lan-join-open", control);
+    const mounted = mountApp({ document, window, controller });
+    await mounted.ready;
+    window.scrollY = 1400;
+    await window.dispatch("scroll");
+    control.focus();
+    window.scrollY = 0;
+    window.scrolls = [];
+    await window.dispatch("scroll");
+    assert.deepEqual(visibleSeqs(controller), range(301, 500));
+    assert.equal(window.scrollY, 0);
+    assert.equal(document.activeElement, control);
+    assert.deepEqual(window.scrolls, []);
+    const earlier = document.getElementById("load-earlier");
+    earlier.focus();
+    await earlier.dispatch("click");
+    assert.deepEqual(visibleSeqs(controller), range(201, 500));
+    mounted.destroy();
+  });
+}
+
+test("an in-flight update while hidden resumes latest following when the tab becomes visible", async () => {
+  const source = server();
+  const controller = controllerFor(source);
+  const document = miniDocument();
+  const window = miniWindow();
+  const mounted = mountApp({ document, window, controller });
+  await mounted.ready;
+  window.scrollY = document.documentElement.scrollHeight - window.innerHeight;
+  window.scrolls = [];
+  source.head = 510;
+  const release = source.deferNext("data/manifest.json");
+  const inFlight = controller.refresh();
+  document.hidden = true;
+  await document.dispatch("visibilitychange");
+  release();
+  await inFlight;
+  assert.equal(visibleSeqs(controller).at(-1), 510);
+  assert.equal(controller.snapshot().newEventCount, 10);
+  assert.deepEqual(window.scrolls, []);
+  const count = source.calls.length;
+  window.tick!();
+  assert.equal(source.calls.length, count);
+  document.hidden = false;
+  await document.dispatch("visibilitychange");
+  assert.deepEqual(window.scrolls, [{ top: document.documentElement.scrollHeight, behavior: "auto" }]);
+  assert.equal(controller.snapshot().newEventCount, 0);
+  mounted.destroy();
+});
+
+test("returning to a visible tab catches up immediately without moving a history reader", async () => {
+  const source = server();
+  const controller = controllerFor(source);
+  const document = miniDocument();
+  const window = miniWindow();
+  const mounted = mountApp({ document, window, controller });
+  await mounted.ready;
+  window.scrollY = 700;
+  await window.dispatch("scroll");
+  window.scrolls = [];
+  document.hidden = true;
+  await document.dispatch("visibilitychange");
+  source.head = 503;
+  document.hidden = false;
+  await document.dispatch("visibilitychange");
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(visibleSeqs(controller).at(-1), 503);
+  assert.deepEqual(window.scrolls, []);
+  assert.equal(window.scrollY, 700);
+  assert.equal(controller.snapshot().newEventCount, 3);
+  mounted.destroy();
 });
 
 test("older-history insertion preserves the visual position rather than jumping to the bottom", async () => {
@@ -1212,7 +1508,7 @@ function lanJoinFixture() {
     prompt: "接入 https://192.168.10.66:8443/participant/v1/\n字面文本 <img src=x>，完成沙盒后等待人工审核。",
   };
   return {
-    document, navigator, copied, payload, scrolls,
+    document, window, navigator, copied, payload, scrolls,
     get selected() { return selected; },
     get opens() { return opens; },
     set legacyResult(value: boolean) { legacyResult = value; },
@@ -1231,25 +1527,62 @@ test("LAN instructions render as literal read-only text and copy via Clipboard A
   });
   assert.equal(await mounted.ready, true);
   const get = (id: string) => fixture.document.getElementById(id);
-  assert.equal(get("lan-join").hidden, false);
+  assert.equal(get("lan-join").hidden, true);
   assert.equal(get("lan-join-open").hidden, false);
+  assert.equal(get("lan-join-open").attributes.get("aria-expanded"), "false");
   assert.equal(get("lan-join-prompt").textContent, fixture.payload.prompt);
   assert.equal(get("lan-join-prompt").children.length, 0);
+  await get("lan-join-copy").dispatch("click");
+  assert.deepEqual(fixture.copied, [], "hidden instructions are not a copy target");
+  await get("lan-join-open").dispatch("click");
+  assert.equal(get("lan-join").hidden, false);
+  assert.equal(get("lan-join-open").attributes.get("aria-expanded"), "true");
+  assert.equal(fixture.opens, 1);
   await get("lan-join-copy").dispatch("click");
   assert.deepEqual(fixture.copied, [fixture.payload.prompt]);
   assert.match(get("lan-join-copy-status").textContent, /已复制/u);
   await get("lan-join-open").dispatch("click");
   assert.equal(fixture.opens, 1);
+  assert.equal(get("lan-join").hidden, true);
+  assert.equal(get("lan-join-open").attributes.get("aria-expanded"), "false");
+  assert.deepEqual(fixture.scrolls, [{ left: 0, top: 120, behavior: "auto" }]);
   mounted.destroy();
   await get("lan-join-copy").dispatch("click");
   assert.equal(fixture.copied.length, 1);
   assert.equal(get("lan-join").hidden, true);
 });
 
+test("closing LAN instructions restores the same event when arrivals or history replace its DOM row", async () => {
+  const fixture = lanJoinFixture();
+  const { document, window } = fixture;
+  Object.assign(window, { innerHeight: 800 });
+  window.scrollY = 500;
+  const row = document.createElement("li");
+  row.dataset.seq = "400";
+  row.dataset.eventId = "event-400";
+  Object.assign(row, { getBoundingClientRect: () => ({ top: 200, bottom: 300 }) });
+  document.getElementById("timeline").appendChild(row);
+  const mounted = fixture.mount();
+  await mounted.ready;
+  await document.getElementById("lan-join-open").dispatch("click");
+  window.scrollY = 80;
+  const replacement = document.createElement("li");
+  replacement.dataset.seq = "400";
+  replacement.dataset.eventId = "event-400";
+  Object.assign(replacement, {
+    getBoundingClientRect: () => ({ top: 4700 - window.scrollY, bottom: 4800 - window.scrollY }),
+  });
+  document.getElementById("timeline").replaceChildren(replacement);
+  await document.getElementById("lan-join-open").dispatch("click");
+  assert.deepEqual(fixture.scrolls, [{ left: 0, top: 4500, behavior: "auto" }]);
+  mounted.destroy();
+});
+
 test("LAN HTTP copies selected visible text without a secure-context Clipboard API", async () => {
   const fixture = lanJoinFixture();
   const mounted = fixture.mount();
   await mounted.ready;
+  await fixture.document.getElementById("lan-join-open").dispatch("click");
   await fixture.document.getElementById("lan-join-copy").dispatch("click");
   assert.deepEqual(fixture.copied, [fixture.payload.prompt]);
   assert.equal(fixture.selected, null);
@@ -1265,6 +1598,7 @@ test("denied clipboard and legacy copy leave instructions selected for manual co
   fixture.legacyResult = false;
   const mounted = fixture.mount();
   await mounted.ready;
+  await fixture.document.getElementById("lan-join-open").dispatch("click");
   await fixture.document.getElementById("lan-join-copy").dispatch("click");
   assert.deepEqual(fixture.copied, []);
   assert.equal(fixture.selected, fixture.document.getElementById("lan-join-prompt"));

@@ -316,7 +316,7 @@ id = "A8"
 title = "历史滚动与展示正确性"
 local_status = "verified"
 final_status = "pending"
-remaining = ["本地浏览器与网页回归已验证；全面审计新增自动重试、焦点和长历史渲染验证；本轮未声明正式首版完成。"]
+remaining = ["本地浏览器与网页回归已验证新事件自动可见、未读只导航、完整历史、宽窄屏和LAN默认折叠；并发历史与控件焦点滚动保护见2026-11-17记录。不提前声明正式首版完成。"]
 
 [[criteria.evidence]]
 kind = "local_record"
@@ -347,6 +347,11 @@ label = "真实Intl与视图缓存回归"
 kind = "local_record"
 path = "docs/demos/after-lan-continuity-2026-11-15.md"
 label = "回复按钮及撤回行的重绘焦点保留"
+
+[[criteria.evidence]]
+kind = "local_record"
+path = "docs/demos/web-reading-refresh-2026-11-17.md"
+label = "新消息自动可见、导航与LAN折叠阅读修订"
 
 [[criteria]]
 id = "A9"

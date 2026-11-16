@@ -34,7 +34,7 @@ export interface EventView {
 export interface TimelineSnapshot {
   manifest: Manifest | null; cursor: Cursor | null; generation: number; loaded: boolean;
   timelineRevision: number;
-  visibleEvents: PublicEvent[]; pendingEvents: PublicEvent[]; newEventCount: number;
+  visibleEvents: PublicEvent[]; unreadEvents: PublicEvent[]; newEventCount: number;
   eventsBySeq: Map<number, PublicEvent>; retractedSeqs: Set<number>; participants: Participant[];
   historyLoading: boolean; historyComplete: boolean; connection: "loading" | "live" | "error";
 }
@@ -315,8 +315,48 @@ export function mountLanJoin({ document, window, fetchJson = fetchPublicJson }: 
   const status = document.getElementById("lan-join-copy-status");
   if (!panel || !shortcut || !copy || !prompt || !status) return { ready: Promise.resolve(false), destroy() {} };
   let destroyed = false;
-  const onOpen = () => panel.scrollIntoView({ block: "start", behavior: "auto" });
+  let readingPosition: ScrollToOptions | null = null;
+  let readingAnchor: { seq: string; eventId: string; top: number } | null = null;
+  const onOpen = () => {
+    const opening = panel.hidden;
+    shortcut.setAttribute("aria-expanded", String(opening));
+    if (opening) {
+      readingPosition = { left: window.scrollX, top: window.scrollY, behavior: "auto" };
+      readingAnchor = null;
+      const timeline = document.getElementById("timeline");
+      for (const row of Array.from(timeline?.children ?? [])) {
+        const event = row as HTMLElement;
+        const rect = event.getBoundingClientRect?.();
+        if (event.dataset.seq && event.dataset.eventId && rect &&
+          Number.isFinite(rect.top) && rect.bottom > 0 && rect.top < window.innerHeight) {
+          readingAnchor = { seq: event.dataset.seq, eventId: event.dataset.eventId, top: rect.top };
+          break;
+        }
+      }
+      panel.hidden = false;
+      status.textContent = "";
+      panel.scrollIntoView({ block: "start", behavior: "auto" });
+    } else {
+      panel.hidden = true;
+      if (readingPosition && readingAnchor) {
+        const anchor = readingAnchor;
+        const timeline = document.getElementById("timeline");
+        const row = Array.from(timeline?.children ?? []).find((node) => {
+          const event = node as HTMLElement;
+          return event.dataset.seq === anchor.seq && event.dataset.eventId === anchor.eventId;
+        });
+        const rect = row?.getBoundingClientRect?.();
+        if (rect && Number.isFinite(rect.top)) {
+          readingPosition.top = (window.scrollY ?? 0) + rect.top - anchor.top;
+        }
+      }
+      if (readingPosition) window.scrollTo(readingPosition);
+      readingPosition = null;
+      readingAnchor = null;
+    }
+  };
   const onCopy = async () => {
+    if (panel.hidden || destroyed) return;
     const text = prompt.textContent ?? "";
     let copied = false;
     try {
@@ -349,12 +389,13 @@ export function mountLanJoin({ document, window, fetchJson = fetchPublicJson }: 
   };
   panel.hidden = true;
   shortcut.hidden = true;
+  shortcut.setAttribute("aria-controls", "lan-join");
+  shortcut.setAttribute("aria-expanded", "false");
   const ready = (async () => {
     try {
       const data = readLanJoin(await fetchJson("lan-join.json"));
       if (destroyed) return false;
       prompt.textContent = data.prompt;
-      panel.hidden = false;
       shortcut.hidden = false;
       copy.addEventListener("click", onCopy);
       shortcut.addEventListener("click", onOpen);
@@ -372,6 +413,7 @@ export function mountLanJoin({ document, window, fetchJson = fetchPublicJson }: 
       shortcut.removeEventListener("click", onOpen);
       panel.hidden = true;
       shortcut.hidden = true;
+      shortcut.setAttribute("aria-expanded", "false");
     },
   };
 }
@@ -382,7 +424,7 @@ export class TimelineController {
   cursor: Cursor | null;
   events: Map<number, PublicEvent>;
   visible: Set<number>;
-  pending: Set<number>;
+  unread: Set<number>;
   retracted: Set<number>;
   participants: Participant[];
   listeners: Set<(snapshot: TimelineSnapshot) => void>;
@@ -401,7 +443,7 @@ export class TimelineController {
     this.cursor = null;
     this.events = new Map();
     this.visible = new Set();
-    this.pending = new Set();
+    this.unread = new Set();
     this.retracted = new Set();
     this.participants = [];
     this.listeners = new Set();
@@ -426,8 +468,8 @@ export class TimelineController {
       timelineRevision: this.timelineRevision,
       loaded: this.cursor !== null,
       visibleEvents,
-      pendingEvents: select(this.pending),
-      newEventCount: select(this.pending).filter((event) => knownKinds.has(event.kind)).length,
+      unreadEvents: select(this.unread),
+      newEventCount: select(this.unread).filter((event) => knownKinds.has(event.kind)).length,
       eventsBySeq: new Map(this.events),
       retractedSeqs: new Set(this.retracted),
       participants: [...this.participants],
@@ -499,7 +541,7 @@ export class TimelineController {
     this.events.clear();
     this.visible.clear();
     this.visibleReplyTargets.clear();
-    this.pending.clear();
+    this.unread.clear();
     this.retracted.clear();
     this.retryHistory = false;
     this.retryReplies.clear();
@@ -578,7 +620,11 @@ export class TimelineController {
         throw new Error("聊天流正在重建，请稍候");
       }
       this.ingest(events, manifest.newest_seq);
-      for (const event of events) if (event.seq > cursor.seq) this.pending.add(event.seq);
+      for (const event of events) if (event.seq > cursor.seq) {
+        this.makeVisible(event.seq);
+        this.unread.add(event.seq);
+      }
+      this.timelineRevision++;
       this.manifest = manifest;
       this.participants = participants;
       this.cursor = { seq: manifest.newest_seq, event_id: manifest.newest_event_id };
@@ -666,10 +712,9 @@ export class TimelineController {
     }
   }
 
-  revealNew() {
-    if (this.pending.size) this.timelineRevision++;
-    for (const seq of this.pending) this.makeVisible(seq);
-    this.pending.clear();
+  markRead() {
+    if (!this.unread.size) return;
+    this.unread.clear();
     this.emit();
   }
 
@@ -808,7 +853,7 @@ export function renderApp(document: Document, snapshot: TimelineSnapshot, { onRe
   get("history-status").textContent = snapshot.historyComplete ? "没有更早消息" : "";
   const latest = get("new-messages");
   latest.hidden = snapshot.newEventCount === 0;
-  latest.textContent = `有 ${snapshot.newEventCount} 条新消息 ↓`;
+  latest.textContent = snapshot.newEventCount ? `回到最新 · ${snapshot.newEventCount} 条新动态 ↓` : "回到最新 ↓";
   if (renderMessages) {
     const timeline = get("timeline");
     const active = document.activeElement as HTMLElement | null;
@@ -868,11 +913,50 @@ export function mountApp({ document, window, controller = new TimelineController
   let historyControlActive = false;
   let historyFocusPending = false;
   const earlierButton = requiredElement<HTMLButtonElement>(document, "load-earlier");
+  const latestButton = requiredElement<HTMLButtonElement>(document, "new-messages");
+  const timeline = requiredElement(document, "timeline");
+  let followingLatest = true;
+  let wasHidden = document.hidden;
+  const joinExpanded = () => {
+    const join = document.getElementById("lan-join");
+    return Boolean(join && !join.hidden);
+  };
+  const timelineEnd = () => {
+    const rect = timeline.getBoundingClientRect?.();
+    return rect && Number.isFinite(rect.bottom) ? rect.bottom + (window.scrollY ?? 0) : null;
+  };
+  const nearBottom = (height = document.documentElement.scrollHeight, top = window.scrollY ?? 0) =>
+    (timelineEnd() ?? height) - top - (window.innerHeight ?? 0) <= 96;
+  const scrollToLatest = () => {
+    const end = timelineEnd();
+    window.scrollTo({
+      top: end === null ? document.documentElement.scrollHeight : Math.max(0, end - window.innerHeight + 24),
+      behavior: "auto",
+    });
+  };
+  const nativeControlFocused = () => {
+    const active = document.activeElement;
+    return Boolean(active && ["BUTTON", "SUMMARY", "A", "INPUT", "SELECT", "TEXTAREA"].includes(active.tagName));
+  };
+  const readingInteraction = () => {
+    const active = document.activeElement;
+    const selection = window.getSelection?.();
+    const selectingTimeline = selection?.isCollapsed === false &&
+      ((selection.anchorNode && timeline.contains(selection.anchorNode)) ||
+        (selection.focusNode && timeline.contains(selection.focusNode)));
+    return Boolean((active && (timeline.contains(active) || active === earlierButton)) ||
+      nativeControlFocused() || joinExpanded() || selectingTimeline);
+  };
+  const updateLatestControl = (snapshot = previous) => {
+    latestButton.hidden = !snapshot?.loaded || snapshot.visibleEvents.length === 0 ||
+      (nearBottom() && snapshot.newEventCount === 0);
+  };
   const onReply = (target: EventReference) => controller.loadReply(target);
   const stopListening = controller.subscribe((snapshot) => {
     const view = views.read(snapshot);
     const beforeHeight = document.documentElement.scrollHeight;
     const beforeY = window.scrollY ?? 0;
+    const canFollow = !document.hidden && nearBottom(beforeHeight, beforeY) && !readingInteraction();
     if ((previous && previous.generation !== snapshot.generation) ||
       (document.activeElement && document.activeElement !== document.body && document.activeElement !== earlierButton)) {
       historyFocusPending = false;
@@ -885,13 +969,30 @@ export function mountApp({ document, window, controller = new TimelineController
     const min = snapshot.visibleEvents[0]?.seq;
     const previousMin = previous?.visibleEvents[0]?.seq;
     const initial = snapshot.loaded && (!previous?.loaded || previous.generation !== snapshot.generation);
-    if (initial && snapshot.visibleEvents.length > 0) window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "auto" });
+    const appended = snapshot.generation === previous?.generation &&
+      (snapshot.visibleEvents.at(-1)?.seq ?? 0) > (previous?.visibleEvents.at(-1)?.seq ?? 0);
+    let markRead = false;
+    if (initial && snapshot.visibleEvents.length > 0 && !document.hidden && !readingInteraction()) {
+      scrollToLatest();
+      followingLatest = true;
+      markRead = true;
+    }
     else if (min !== undefined && previousMin !== undefined && min < previousMin && snapshot.generation === previous?.generation) {
       const keepControlVisible = historyControlActive || historyFocusPending || document.activeElement === earlierButton;
       window.scrollTo({
-        top: keepControlVisible ? beforeY : beforeY + document.documentElement.scrollHeight - beforeHeight,
+        top: joinExpanded() || keepControlVisible ? beforeY : beforeY + document.documentElement.scrollHeight - beforeHeight,
         behavior: "auto",
       });
+    } else if (appended) {
+      if (canFollow) {
+        scrollToLatest();
+        followingLatest = true;
+        markRead = true;
+      } else if (!document.hidden && (window.scrollY ?? 0) !== beforeY) {
+        // Appending is immediate even when the reader is reviewing history.
+        // Restore their position if the browser adjusted its scroll anchor.
+        window.scrollTo({ top: beforeY, behavior: "auto" });
+      }
     }
     if (historyFocusPending && !snapshot.historyLoading) {
       const focusTarget = snapshot.historyComplete ? requiredElement(document, "history-status") : earlierButton;
@@ -900,6 +1001,9 @@ export function mountApp({ document, window, controller = new TimelineController
       historyFocusPending = false;
     }
     previous = snapshot;
+    updateLatestControl(snapshot);
+    // Update the comparison snapshot before emitting an unread-only change.
+    if (markRead && snapshot.unreadEvents.length) controller.markRead();
   });
   const onEarlier = async () => {
     if (controller.historyLoading) return false;
@@ -913,18 +1017,39 @@ export function mountApp({ document, window, controller = new TimelineController
     }
   };
   const onLatest = () => {
-    controller.revealNew();
-    window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "auto" });
+    scrollToLatest();
+    followingLatest = true;
+    lastScrollY = window.scrollY ?? 0;
+    controller.markRead();
+    updateLatestControl();
   };
-  const onVisible = () => { if (!document.hidden) void controller.refresh(); };
+  const onVisible = () => {
+    if (document.hidden) {
+      if (!wasHidden) followingLatest = nearBottom() && !readingInteraction();
+      wasHidden = true;
+      return;
+    }
+    if (wasHidden && followingLatest && !readingInteraction()) {
+      scrollToLatest();
+      controller.markRead();
+      updateLatestControl();
+    }
+    wasHidden = false;
+    void controller.refresh();
+  };
   const onScroll = () => {
     const position = window.scrollY ?? 0;
-    if (position < lastScrollY && position < 140 &&
+    if (!document.hidden) {
+      followingLatest = nearBottom() && !readingInteraction();
+      if (followingLatest) controller.markRead();
+      updateLatestControl();
+    }
+    if (!joinExpanded() && !nativeControlFocused() && position < lastScrollY && position < 140 &&
       document.activeElement !== earlierButton && !historyControlActive) void controller.loadEarlier();
     lastScrollY = position;
   };
   earlierButton.addEventListener("click", onEarlier);
-  requiredElement(document, "new-messages").addEventListener("click", onLatest);
+  latestButton.addEventListener("click", onLatest);
   document.addEventListener("visibilitychange", onVisible);
   window.addEventListener("scroll", onScroll, { passive: true });
   if (window.matchMedia?.("(max-width: 760px)").matches) requiredElement<HTMLDetailsElement>(document, "participant-details").open = false;
@@ -939,7 +1064,7 @@ export function mountApp({ document, window, controller = new TimelineController
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("scroll", onScroll);
       earlierButton.removeEventListener("click", onEarlier);
-      requiredElement(document, "new-messages").removeEventListener("click", onLatest);
+      latestButton.removeEventListener("click", onLatest);
       controller.destroy();
     },
   };
