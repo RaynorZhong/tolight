@@ -20,4 +20,6 @@ Owner创建公开仓库 [RaynorZhong/tolight](https://github.com/RaynorZhong/tol
 
 该修复提交[bba831f](https://github.com/RaynorZhong/tolight/commit/bba831fdef9d874434f884ccffc582046cd03b45)的[Linux CI](https://github.com/RaynorZhong/tolight/actions/runs/43896756883)已通过上述PITR及其余CLI/Coordinator测试，随后发现store恢复单测的另一项平台假设：Linux当前时钟有纳秒精度，PG持久化为微秒。测试现固定子微秒输入，并将恢复值与原先实际持久化的期限严格比较，保留全部恢复与幂等断言，不修改生产恢复逻辑或使用误差容忍。隔离PG18的store库15项测试、对应全目标/全特性Clippy与fmt检查通过。
 
+后续提交[fff9ffc的CI](https://github.com/RaynorZhong/tolight/actions/runs/43898635233)在敌意参与者测试的2秒计时断言失败，尚未执行store精度回归；同一压测在前轮曾通过。原观察窗混入了50次攻击签名与HTTP客户端的同步初始化，现将这些准备移到计时前，并用屏障同阶段释放50个真实攻击请求与健康发送。保留原2秒阈值、配额/拒绝码/敏感正文不公开等全部断言，未放宽服务端规则。隔离PG18敌意客户端及参与者7项回归、对应Clippy和fmt检查通过；完整Linux结果仍以最新提交的Actions为准。
+
 普通main源码公开不等于正式版本发布。代码仍为0.1.0、参与者规范仍为0.1草案；正式tag、flake.lock、分支保护、生产Origin、公开联系渠道、真实Agent与模型24小时等对应门槛保留。A2及public_release_ci继续pending，不因仓库可见或分支CI通过而自动关闭。

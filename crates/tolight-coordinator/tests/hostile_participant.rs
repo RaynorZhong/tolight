@@ -1,7 +1,10 @@
 mod support;
 use serde_json::json;
 use sqlx::PgPool;
-use std::time::{Duration, Instant};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use support::fake_agent::{FakeAgent, TestApp};
 #[sqlx::test(migrations = "../tolight-coordinator-store/migrations")]
 async fn fifty_hostile_sends_and_rejected_secret_shapes_leave_other_agents_usable(pool: PgPool) {
@@ -18,18 +21,54 @@ async fn fifty_hostile_sends_and_rejected_secret_shapes_leave_other_agents_usabl
         let review = app.room.store().review(&agent.id).await.unwrap();
         app.room.store().approve(&review, false).await.unwrap();
     }
+    // Client/certificate initialization and signing are load-driver setup,
+    // not server latency. Release all prepared requests in the same phase.
+    let client = reqwest::Client::new();
+    let mut requests = Vec::new();
+    for index in 0..50 {
+        let body = serde_json::to_vec(&json!({
+            "client_message_id": format!("attack-{index}"),
+            "text": if index % 2 == 0 {
+                "@alice @bob spam"
+            } else {
+                "-----BEGIN PRIVATE KEY----- hidden"
+            },
+        }))
+        .unwrap();
+        let timestamp = chrono::Utc::now().timestamp().to_string();
+        let signed = tolight_core::signing::sign_request(
+            &hostile.seed,
+            "POST",
+            &app.address.to_string(),
+            "http",
+            "/participant/v1/messages",
+            "",
+            &timestamp,
+            &body,
+        )
+        .unwrap();
+        requests.push(
+            client
+                .post(format!("{}/participant/v1/messages", app.origin))
+                .header("Tolight-Key", signed.key)
+                .header("Tolight-Timestamp", signed.timestamp)
+                .header("Tolight-Signature", signed.signature)
+                .header("Content-Type", "application/json")
+                .body(body)
+                .build()
+                .unwrap(),
+        );
+    }
+    let ready = Arc::new(tokio::sync::Barrier::new(requests.len() + 1));
     let attack = async {
         let mut tasks = Vec::new();
-        for index in 0..50 {
-            let agent = hostile.clone();
-            let origin = app.origin.clone();
-            let address = app.address;
+        for request in requests {
+            let client = client.clone();
+            let ready = ready.clone();
             tasks.push(tokio::spawn(async move {
-                let body=serde_json::to_vec(&json!({"client_message_id":format!("attack-{index}"),"text":if index%2==0 {"@alice @bob spam"}else{"-----BEGIN PRIVATE KEY----- hidden"}})).unwrap();
-                let timestamp=chrono::Utc::now().timestamp().to_string();
-                let signed=tolight_core::signing::sign_request(&agent.seed,"POST",&address.to_string(),"http","/participant/v1/messages","",&timestamp,&body).unwrap();
-                let response=reqwest::Client::new().post(format!("{origin}/participant/v1/messages")).header("Tolight-Key",signed.key).header("Tolight-Timestamp",signed.timestamp).header("Tolight-Signature",signed.signature).header("Content-Type","application/json").body(body).send().await.unwrap();
-                assert!([201,422,429].contains(&response.status().as_u16()));
+                ready.wait().await;
+                let response = client.execute(request).await.unwrap();
+                assert!([201, 422, 429].contains(&response.status().as_u16()));
             }));
         }
         for task in tasks {
@@ -37,6 +76,7 @@ async fn fifty_hostile_sends_and_rejected_secret_shapes_leave_other_agents_usabl
         }
     };
     let healthy = async {
+        ready.wait().await;
         let started = Instant::now();
         assert_eq!(alice.send(&app, "healthy alice").await.status, 201);
         assert_eq!(bob.send(&app, "healthy bob").await.status, 201);
