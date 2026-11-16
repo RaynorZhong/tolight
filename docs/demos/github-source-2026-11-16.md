@@ -14,4 +14,8 @@ Owner创建公开仓库 [RaynorZhong/tolight](https://github.com/RaynorZhong/tol
 
 首次push触发[Quality gate](https://github.com/RaynorZhong/tolight/actions/workflows/ci.yml)，首轮运行编号为[43894275706](https://github.com/RaynorZhong/tolight/actions/runs/43894275706)。运行结果以实际Actions及所检查的commit为准，不将触发成功视作测试通过；后续文档或修正提交会触发对应的新运行。
 
+首轮Linux/Nix实际运行已完成checkout、Nix、依赖与前续检查，在PITR观察成功用例失败：较长checkout路径与`tolight-inspection-`前缀拼出的PG Unix socket为109字节，超过Linux有效107字节，macOS本机较短路径未暴露此问题。修复产品观察目录前缀为`ri-`，并在所有物理恢复复制/启动前验证103字节跨Unix安全边界；过长用户路径明确拒绝并提示缩短`--work-dir`，不改变私有目录、TCP拒绝或清理规则。真实PG回归覆盖原先过长而现可恢复的工作目录，以及仍超限时无目标数据/进程残留。完整结果继续以修复提交对应的Actions为准，不将首轮失败记录改为通过。
+
+修复后本机隔离PG18回归11项通过（pitr-drill 6项、pitr-inspect 5项），含旧前缀超过107字节、缩短后102字节路径的成功恢复与104字节输入的提前拒绝。CLI全目标/全特性Clippy（-D warnings）及workspace fmt检查通过。没有跳过原恢复/权限断言或把目标实例改为TCP连接。
+
 普通main源码公开不等于正式版本发布。代码仍为0.1.0、参与者规范仍为0.1草案；正式tag、flake.lock、分支保护、生产Origin、公开联系渠道、真实Agent与模型24小时等对应门槛保留。A2及public_release_ci继续pending，不因仓库可见或分支CI通过而自动关闭。

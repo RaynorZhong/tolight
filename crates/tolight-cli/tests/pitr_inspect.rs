@@ -264,6 +264,22 @@ impl Primary {
     }
     fn inspect(&self, code: i32, extra: &[&str]) -> (Output, Value) {
         let work = root().join(".local/inspection-tests");
+        self.inspect_in(&work, code, extra)
+    }
+    fn socket_work_dir(&self, socket_bytes: usize) -> PathBuf {
+        let parent = self.root().join("w");
+        let suffix = Path::new("ri-0000000000").join("socket/.s.PGSQL.65535");
+        let fixed = parent.as_os_str().as_encoded_bytes().len()
+            + 1
+            + 1
+            + suffix.as_os_str().as_encoded_bytes().len();
+        assert!(
+            socket_bytes > fixed,
+            "fixture source path leaves no room for a padded inspection directory"
+        );
+        parent.join("w".repeat(socket_bytes - fixed))
+    }
+    fn inspect_in(&self, work: &Path, code: i32, extra: &[&str]) -> (Output, Value) {
         let mut argv = vec![
             "storage",
             "pitr-inspect",
@@ -279,9 +295,33 @@ impl Primary {
             "15",
         ];
         argv.extend_from_slice(extra);
-        let output = self.output(env!("CARGO_BIN_EXE_tolight-ops"), &argv, code);
-        let summary = serde_json::from_slice(&output.stdout).unwrap();
+        let output = self
+            .command(env!("CARGO_BIN_EXE_tolight-ops"))
+            .args(&argv)
+            .output()
+            .unwrap();
+        let summary: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(
+            output.status.code(),
+            Some(code),
+            "{}",
+            Self::inspection_failure(&summary)
+        );
         (output, summary)
+    }
+    fn inspection_failure(summary: &Value) -> String {
+        let report_path = Path::new(summary["report"].as_str().unwrap());
+        let report = json(report_path);
+        let work = report_path.parent().unwrap();
+        let mut diagnostic = format!("phase={} error={}", report["phase"], report["error"]);
+        // Read only the fixture's startup diagnostics. A full controls export
+        // or observation may contain private contacts and must not be printed.
+        for name in ["pg-start.stdout", "postgres.log"] {
+            if let Ok(log) = fs::read_to_string(work.join(name)) {
+                diagnostic.push_str(&format!("\n{name}:\n{log}"));
+            }
+        }
+        diagnostic
     }
 }
 impl Drop for Primary {
@@ -308,7 +348,10 @@ impl Drop for Primary {
 fn latest_wal_is_only_an_unverified_private_observation_after_source_shutdown() {
     let mut primary = Primary::new();
     assert!(!primary.running);
-    let (_, summary) = primary.inspect(2, &[]);
+    let base = primary.socket_work_dir(102);
+    let old_socket = base.join("tolight-inspection-0000000000/socket/.s.PGSQL.65535");
+    assert!(old_socket.as_os_str().as_encoded_bytes().len() > 107);
+    let (_, summary) = primary.inspect_in(&base, 2, &[]);
     assert_eq!(summary["status"], "needs_verified_controls");
     let report = json(summary["report"].as_str().unwrap());
     for key in [
@@ -330,6 +373,11 @@ fn latest_wal_is_only_an_unverified_private_observation_after_source_shutdown() 
         assert_eq!(report[key], false, "{key}");
     }
     assert_eq!(report["target_postgres"]["tcp_authentication"], "reject");
+    let socket = Path::new(report["target_postgres"]["socket"].as_str().unwrap()).join(format!(
+        ".s.PGSQL.{}",
+        report["target_postgres"]["port"].as_u64().unwrap()
+    ));
+    assert!(socket.as_os_str().as_encoded_bytes().len() < 104);
     assert!(report["coverage"]["replay_lsn"].is_string());
     assert!(!report["coverage"]["last_replay_commit_time"].is_null());
     assert!(report["coverage"]["latest_source_commit_time"].is_null());
@@ -357,6 +405,14 @@ fn latest_wal_is_only_an_unverified_private_observation_after_source_shutdown() 
         ["before-agent", "after-agent"].into_iter().collect()
     );
     let work = Path::new(report["work_dir"].as_str().unwrap());
+    assert_eq!(work.parent(), Some(base.as_path()));
+    assert!(
+        work.file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .starts_with("ri-")
+    );
     for name in ["public", ".inspection-raw-controls.json", "data", "archive"] {
         assert!(!work.join(name).exists(), "{name}");
     }
@@ -365,6 +421,14 @@ fn latest_wal_is_only_an_unverified_private_observation_after_source_shutdown() 
         use std::os::unix::fs::PermissionsExt;
         assert_eq!(
             fs::metadata(observation_path).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+        assert_eq!(
+            fs::metadata(summary["report"].as_str().unwrap())
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
             0o600
         );
         assert_eq!(
@@ -390,6 +454,70 @@ fn latest_wal_is_only_an_unverified_private_observation_after_source_shutdown() 
             .contains("snapshot")
     );
     primary.stop();
+}
+#[test]
+fn overlong_socket_path_fails_before_copying_data_or_starting_target_postgres() {
+    let primary = Primary::new();
+    let base = primary.socket_work_dir(104);
+    let (_, summary) = primary.inspect_in(&base, 1, &[]);
+    assert_eq!(summary["status"], "failed");
+    let report = json(summary["report"].as_str().unwrap());
+    assert_eq!(report["phase"], "latest_available_recovery");
+    let error = report["error"].as_str().unwrap();
+    assert!(error.contains("103 bytes"), "{error}");
+    assert!(error.contains("shorter --work-dir"), "{error}");
+    assert!(report.get("target_postgres").is_none());
+    assert!(report.get("target_postgres_stopped").is_none());
+    for key in [
+        "unknown_controls",
+        "target_data_removed",
+        "temporary_archive_removed",
+    ] {
+        assert_eq!(report[key], true, "{key}");
+    }
+    for key in [
+        "known_current_controls",
+        "restore_eligible",
+        "source_connected",
+        "application_started",
+        "public_tree_created",
+        "importable_control_snapshot_retained",
+    ] {
+        assert_eq!(report[key], false, "{key}");
+    }
+    let work = Path::new(report["work_dir"].as_str().unwrap());
+    assert_eq!(work.parent(), Some(base.as_path()));
+    for name in [
+        "data",
+        "socket",
+        "archive",
+        "public",
+        "pg-start.stdout",
+        "postgres.log",
+        ".inspection-raw-controls.json",
+        "unverified-observation.json",
+    ] {
+        assert!(
+            !work.join(name).exists(),
+            "unexpected target artifact: {name}"
+        );
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        assert_eq!(
+            fs::metadata(summary["report"].as_str().unwrap())
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o600
+        );
+        assert_eq!(
+            fs::metadata(work).unwrap().permissions().mode() & 0o777,
+            0o700
+        );
+    }
 }
 #[test]
 fn corrupt_wal_never_creates_public_tree_or_importable_snapshot() {

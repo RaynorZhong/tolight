@@ -358,6 +358,8 @@ scripts/pitr-inspect.sh \
   --archive-dir /absolute/private/wal --work-dir .local/inspections
 ```
 
+PITR演练与观察的`--work-dir`应使用较短路径。目标PostgreSQL完整Unix socket路径（含运行子目录、`socket/.s.PGSQL.<端口>`）按UTF-8字节计最多103字节，以兼容macOS与Linux；超限会在复制数据或启动目标PG前退出1，提示选择更短的`--work-dir`。只读观察使用短`ri-`运行前缀，数据/WAL/报告仍留在所选私有工作目录。
+
 它恢复到**当前可连续重放归档前缀的末端**；中间缺段时后续已存文件不表示已被消费。只记录真实replay LSN/最后回放提交时间（可能null），不把导出时间冒充源最新提交。通过Rust CLI只读观察控制，立即删除可导入快照，仅保留不同schema的不可导入观察包装。即使成功观察也退出2：`needs_verified_controls`、`unknown_controls=true`、`restore_eligible=false`；不创建公共树，不运行restore-controls/publish/serve。私有报告明确未知控制区间上界不可知；停止并删除自己的目标PG和WAL副本。没有忽略未知控制后上线的开关。坏归档/错误主版本等退出1。
 
 ## 19. M4 告警增量与本地处置

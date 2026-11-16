@@ -130,10 +130,20 @@ fn start_recovered(
         timeout,
         env,
     } = startup;
+    let socket = work.join("socket");
+    let socket_text = socket
+        .to_str()
+        .ok_or("recovery work directory must be UTF-8")?;
+    // PostgreSQL appends this filename; macOS allows 103 path bytes and
+    // Linux 107. Check the portable bound before copying data or starting PG.
+    if socket_text.len() + "/.s.PGSQL.65535".len() > 103 {
+        return Err(
+            "PostgreSQL Unix socket path exceeds 103 bytes; choose a shorter --work-dir".into(),
+        );
+    }
     let data = work.join("data");
     copy_tree(&bundle.join("data"), &data)?;
     let number = port()?;
-    let socket = work.join("socket");
     private_dir(&socket)?;
     let restore = std::env::current_exe()?;
     let argv = [
@@ -565,7 +575,7 @@ pub fn inspect(args: PitrInspect) -> Result<()> {
     for public in &roots {
         base = private_path(&base, public)?;
     }
-    let work = temp_dir(&base, "tolight-inspection-")?;
+    let work = temp_dir(&base, "ri-")?;
     let raw = work.join(".inspection-raw-controls.json");
     let mut report = json!({"schema":"tolight-pitr-inspection/1","scope":"unverified_latest_wal_inspection","status":"failed","work_dir":work,"source_connected":false,"unknown_controls":true,"known_current_controls":false,"restore_eligible":false,"application_started":false,"public_tree_created":false,"unknown_control_interval":"Unarchived source activity and external dispositions are not observed; the upper bound is unknown.","production_targets_confirmed":false});
     let mut env = base_env();
