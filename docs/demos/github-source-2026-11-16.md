@@ -18,4 +18,6 @@ Owner创建公开仓库 [RaynorZhong/tolight](https://github.com/RaynorZhong/tol
 
 修复后本机隔离PG18回归11项通过（pitr-drill 6项、pitr-inspect 5项），含旧前缀超过107字节、缩短后102字节路径的成功恢复与104字节输入的提前拒绝。CLI全目标/全特性Clippy（-D warnings）及workspace fmt检查通过。没有跳过原恢复/权限断言或把目标实例改为TCP连接。
 
+该修复提交[bba831f](https://github.com/RaynorZhong/tolight/commit/bba831fdef9d874434f884ccffc582046cd03b45)的[Linux CI](https://github.com/RaynorZhong/tolight/actions/runs/43896756883)已通过上述PITR及其余CLI/Coordinator测试，随后发现store恢复单测的另一项平台假设：Linux当前时钟有纳秒精度，PG持久化为微秒。测试现固定子微秒输入，并将恢复值与原先实际持久化的期限严格比较，保留全部恢复与幂等断言，不修改生产恢复逻辑或使用误差容忍。隔离PG18的store库15项测试、对应全目标/全特性Clippy与fmt检查通过。
+
 普通main源码公开不等于正式版本发布。代码仍为0.1.0、参与者规范仍为0.1草案；正式tag、flake.lock、分支保护、生产Origin、公开联系渠道、真实Agent与模型24小时等对应门槛保留。A2及public_release_ci继续pending，不因仓库可见或分支CI通过而自动关闭。

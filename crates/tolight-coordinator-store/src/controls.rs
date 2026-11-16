@@ -955,8 +955,13 @@ mod restore_tests {
         let old = active(&store, "alice", 102).await;
         let new = public_key_from_seed(&[103; 32]);
         store.set_key("alice", &new).await.unwrap();
-        let until = Utc::now() + Duration::hours(2);
+        // Force sub-microsecond input on every platform. Recovery must match
+        // the persisted source deadline, not the host clock's finer precision.
+        let until =
+            DateTime::from_timestamp((Utc::now() + Duration::hours(2)).timestamp(), 123_456_789)
+                .unwrap();
         store.mute("alice", Some(until), "spam").await.unwrap();
+        let expected_until = store.review("alice").await.unwrap().muted_until.unwrap();
         store.applications_open(false).await.unwrap();
         let dir = tempfile::tempdir().unwrap();
         let (snapshot, bytes) = export(&store, dir.path()).await;
@@ -979,7 +984,7 @@ mod restore_tests {
         prepared.commit(&[]).await.unwrap();
         let restored = store.review("alice").await.unwrap();
         assert_eq!(restored.public_key, Some(new));
-        assert_eq!(restored.muted_until, Some(until));
+        assert_eq!(restored.muted_until, Some(expected_until));
         assert!(!store.room_state().await.unwrap().applications_open);
         let later = public_key_from_seed(&[104; 32]);
         store.set_key("alice", &later).await.unwrap();
