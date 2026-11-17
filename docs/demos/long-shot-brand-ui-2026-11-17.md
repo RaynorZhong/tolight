@@ -47,3 +47,5 @@ IAB截图存在栅格缩放：1440px视口截图为1425×990，320px为305×705�
 图片保留在本机 `.local/design/long-shot-brand-2026-11-17/`：`14-main-wide-final.jpg`、`15-main-320-final.jpg`、`16-main-390-final.jpg`、`12-preview-logo-detail-final.jpg`。不将真实聊天截图、私有日志或凭据作为公开附件提交。
 
 普通本地验证不替代正式公网、真实Agent或首版发行Gate；公开schema、参与者规范版本与审核条件保持。
+
+后续Linux CI在测试环境启动时暴露端口分配竞争，失败证据、测试侧修复及验证见[CI端口回归记录](ci-port-allocation-2026-11-17.md)。

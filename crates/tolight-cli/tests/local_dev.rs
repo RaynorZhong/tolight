@@ -19,7 +19,7 @@ use std::{
     path::{Path, PathBuf},
     process::{Child, Command, ExitStatus, Output, Stdio},
     sync::{
-        Arc, Mutex,
+        Arc, Mutex, OnceLock,
         atomic::{AtomicBool, Ordering},
     },
     time::{Duration, Instant},
@@ -2099,13 +2099,79 @@ fn files(path: &Path) -> Vec<PathBuf> {
 }
 
 fn unused_ports(count: usize) -> Vec<u16> {
-    let listeners = (0..count)
-        .map(|_| TcpListener::bind("127.0.0.1:0").unwrap())
-        .collect::<Vec<_>>();
-    listeners
+    static ALLOCATED: OnceLock<Mutex<BTreeSet<u16>>> = OnceLock::new();
+    let mut allocated = ALLOCATED.get_or_init(Mutex::default).lock().unwrap();
+    let ephemeral = client_ephemeral_ports();
+    let mut listeners = Vec::with_capacity(count);
+    // :0 selects from the same range used by outgoing HTTP connections. After
+    // these probes close, another fixture's client could claim a future server
+    // port while initdb/migrations run. Keep server numbers outside that range
+    // and never hand the same number to two fixtures in this test process.
+    for port in 10_000..=u16::MAX {
+        if listeners.len() == count {
+            break;
+        }
+        if ephemeral.contains(&port) || allocated.contains(&port) {
+            continue;
+        }
+        if let Ok(listener) = TcpListener::bind(("127.0.0.1", port)) {
+            listeners.push(listener);
+        }
+    }
+    assert_eq!(listeners.len(), count, "test server port pool is exhausted");
+    let ports = listeners
         .iter()
         .map(|listener| listener.local_addr().unwrap().port())
-        .collect()
+        .collect::<Vec<_>>();
+    allocated.extend(&ports);
+    ports
+}
+
+fn client_ephemeral_ports() -> std::ops::RangeInclusive<u16> {
+    #[cfg(target_os = "linux")]
+    {
+        static RANGE: OnceLock<(u16, u16)> = OnceLock::new();
+        let (first, last) = *RANGE.get_or_init(|| {
+            let configured = fs::read_to_string("/proc/sys/net/ipv4/ip_local_port_range")
+                .expect("Linux test server allocation requires the kernel client port range");
+            let ports = configured
+                .split_whitespace()
+                .map(|value| {
+                    value
+                        .parse::<u16>()
+                        .expect("invalid kernel client port range")
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(ports.len(), 2, "invalid kernel client port range");
+            assert!(ports[0] > 0 && ports[0] <= ports[1]);
+            (ports[0], ports[1])
+        });
+        first..=last
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        // Conservative exclusion also covers macOS's default 49152..65535.
+        32_768..=u16::MAX
+    }
+}
+
+#[test]
+fn fixture_server_ports_exclude_client_ephemeral_ports_and_parallel_reuse() {
+    let batches = std::thread::scope(|scope| {
+        let workers = (0..8)
+            .map(|_| scope.spawn(|| unused_ports(6)))
+            .collect::<Vec<_>>();
+        workers
+            .into_iter()
+            .flat_map(|worker| worker.join().unwrap())
+            .collect::<Vec<_>>()
+    });
+    let ephemeral = client_ephemeral_ports();
+    assert_eq!(batches.len(), 48);
+    assert!(batches.iter().all(|port| !ephemeral.contains(port)));
+    assert_eq!(batches.iter().copied().collect::<BTreeSet<_>>().len(), 48);
+    let later = unused_ports(6);
+    assert!(later.iter().all(|port| !batches.contains(port)));
 }
 
 fn process_identity(pid: u32) -> String {
