@@ -10,6 +10,89 @@ use std::{
 };
 use tolight_core::signing;
 
+/// Fixed, first-party brand images; never discover arbitrary files in public/.
+pub const BRAND_ASSETS: [&str; 2] = ["long-shot-coffee.jpg", "long-shot-seal.jpg"];
+
+pub fn referenced_brand_assets(index: &str) -> Vec<&'static str> {
+    BRAND_ASSETS
+        .into_iter()
+        .filter(|name| index.contains(name))
+        .collect()
+}
+
+/// Bounded JPEG container validation, not image decoding. Preserve source bytes.
+pub fn valid_brand_jpeg(bytes: &[u8]) -> bool {
+    if bytes.len() > 4 * 1024 * 1024 || !bytes.starts_with(&[0xff, 0xd8]) {
+        return false;
+    }
+    let mut at = 2;
+    let mut frame = false;
+    let mut scan = false;
+    while at < bytes.len() {
+        if bytes[at] != 0xff {
+            return false;
+        }
+        while bytes.get(at) == Some(&0xff) {
+            at += 1;
+        }
+        let Some(&marker) = bytes.get(at) else {
+            return false;
+        };
+        at += 1;
+        if marker == 0xd9 {
+            return frame && scan && at == bytes.len();
+        }
+        if marker < 0xc0 || (0xd0..=0xd8).contains(&marker) {
+            return false;
+        }
+        let Some(length) = bytes.get(at..at + 2) else {
+            return false;
+        };
+        let length = u16::from_be_bytes([length[0], length[1]]) as usize;
+        let Some(end) = at
+            .checked_add(length)
+            .filter(|end| length >= 2 && *end <= bytes.len())
+        else {
+            return false;
+        };
+        if (0xc0..=0xcf).contains(&marker) && ![0xc4, 0xc8, 0xcc].contains(&marker) {
+            if length < 8 || bytes[at + 7] == 0 || length != 8 + 3 * bytes[at + 7] as usize {
+                return false;
+            }
+            let height = u16::from_be_bytes([bytes[at + 3], bytes[at + 4]]);
+            let width = u16::from_be_bytes([bytes[at + 5], bytes[at + 6]]);
+            if width == 0 || height == 0 || width > 8192 || height > 8192 {
+                return false;
+            }
+            frame = true;
+        }
+        at = end;
+        if marker == 0xda {
+            if !frame
+                || length < 6
+                || bytes[end - length + 2] == 0
+                || length != 6 + 2 * bytes[end - length + 2] as usize
+            {
+                return false;
+            }
+            scan = true;
+            while at < bytes.len() {
+                if bytes[at] != 0xff {
+                    at += 1;
+                } else if bytes
+                    .get(at + 1)
+                    .is_some_and(|next| *next == 0 || (0xd0..=0xd7).contains(next))
+                {
+                    at += 2;
+                } else {
+                    break;
+                }
+            }
+        }
+    }
+    false
+}
+
 #[derive(Clone, Debug, serde::Serialize)]
 pub struct SecurityAssetMetadata {
     pub contacts: Vec<String>,
@@ -222,6 +305,27 @@ pub(super) fn install(
     let mut files = Vec::<(String, Vec<u8>)>::new();
     for name in ["app.js", "style.css", "robots.txt", "index.html"] {
         files.push((name.into(), read(&source.join(name))?));
+    }
+    let index = std::str::from_utf8(&files[3].1).expect("validated UTF-8");
+    let referenced = referenced_brand_assets(index);
+    for name in BRAND_ASSETS {
+        let path = source.join(name);
+        if !referenced.contains(&name) && fs::symlink_metadata(&path).is_err() {
+            continue;
+        }
+        let metadata = fs::symlink_metadata(&path).map_err(|error| invalid(&path, error))?;
+        if !metadata.is_file()
+            || metadata.file_type().is_symlink()
+            || metadata.len() > 4 * 1024 * 1024
+        {
+            return Err(invalid(&path, "品牌图片须为至多4MiB的常规JPEG文件"));
+        }
+        let bytes = fs::read(&path).map_err(|error| invalid(&path, error))?;
+        if !valid_brand_jpeg(&bytes) {
+            return Err(invalid(&path, "品牌图片的JPEG容器无效"));
+        }
+        // Install images before index.html, so new references never precede assets.
+        files.insert(0, (name.into(), bytes));
     }
     let security = security_document(source)?;
     let remove_security = security.is_none();

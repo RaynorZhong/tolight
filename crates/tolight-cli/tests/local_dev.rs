@@ -818,6 +818,16 @@ async fn local_check_validates_live_assets_and_json_without_changing_business_st
     assert_eq!(report["checks"]["javascript"]["http_status"], 404);
     fs::rename(&saved_asset, &asset).unwrap();
 
+    for name in tolight_coordinator::publisher::BRAND_ASSETS {
+        let asset = public.join(name);
+        let bytes = fs::read(&asset).unwrap();
+        fs::write(&asset, b"broken JPEG must be detected by the owned check").unwrap();
+        let (invalid, report) = local_check(&mut fixture).await;
+        assert_eq!(invalid.status.code(), Some(1));
+        assert_eq!(report["checks"]["index"]["code"], "brand_asset_invalid");
+        fs::write(&asset, bytes).unwrap();
+    }
+
     let mut invalid_manifest: Value = serde_json::from_slice(&manifest_bytes).unwrap();
     invalid_manifest["newest_event_id"] = json!("invalid-empty-anchor");
     fs::write(

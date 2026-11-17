@@ -291,6 +291,7 @@ pub async fn run(args: Args) -> Result {
     let temporary = tempfile::tempdir()?;
     let root = temporary.path();
     fs::create_dir_all(root.join("data/chunks"))?;
+    let mut brand_assets = Vec::new();
     for (path, types) in [
         ("/", vec!["text/html"]),
         ("/app.js", vec!["text/javascript", "application/javascript"]),
@@ -300,10 +301,35 @@ pub async fn run(args: Args) -> Result {
         ("/data/agents.json", vec!["application/json"]),
     ] {
         let response = get(&client, &origin, path, &types).await?;
+        if path == "/" {
+            brand_assets =
+                tolight_coordinator::publisher::referenced_brand_assets(utf8(&response, false)?);
+        }
         if path.starts_with("/data/") {
             fs::write(root.join(path.trim_start_matches('/')), &response.body)?;
         }
         etag(&client, &origin, path, &response).await?;
+    }
+    for name in brand_assets {
+        let path = format!("/{name}");
+        let response = get(&client, &origin, &path, &["image/jpeg"]).await?;
+        c::ensure(
+            tolight_coordinator::publisher::valid_brand_jpeg(&response.body),
+            "invalid published brand JPEG",
+        )?;
+        etag(&client, &origin, &path, &response).await?;
+        let head = c::fetch(&client, origin.join(name)?, Method::HEAD, None).await?;
+        check(&head, &[200], &["image/jpeg"])?;
+        c::ensure(
+            head.body.is_empty()
+                && head
+                    .headers
+                    .get("content-length")
+                    .and_then(|value| value.to_str().ok())
+                    == Some(response.body.len().to_string().as_str()),
+            "invalid brand image HEAD",
+        )?;
+        println!("PASS brand JPEG {path} / exact length HEAD");
     }
     let manifest: Value = serde_json::from_slice(&fs::read(root.join("data/manifest.json"))?)?;
     let head = manifest["newest_seq"]

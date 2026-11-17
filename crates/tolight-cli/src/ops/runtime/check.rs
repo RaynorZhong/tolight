@@ -117,6 +117,7 @@ fn origin(snapshot: &Value, name: &str) -> Result<Url> {
 
 enum Body {
     Nonempty,
+    Index,
     Health,
     Authentication,
     Manifest,
@@ -125,7 +126,7 @@ enum Body {
 }
 
 async fn get(client: &Client, url: Url, expected: u16, types: &[&str], body: Body) -> Value {
-    let response = match c::fetch(client, url, Method::GET, None).await {
+    let response = match c::fetch(client, url.clone(), Method::GET, None).await {
         Ok(response) => response,
         Err(_) => return json!({"ok":false,"code":"request_failed"}),
     };
@@ -150,6 +151,35 @@ async fn get(client: &Client, url: Url, expected: u16, types: &[&str], body: Bod
     }
     let valid = match body {
         Body::Nonempty => !response.body.is_empty(),
+        Body::Index => {
+            let Ok(index) = std::str::from_utf8(&response.body) else {
+                return failure("invalid_body");
+            };
+            if index.is_empty() {
+                return failure("invalid_body");
+            }
+            for name in tolight_coordinator::publisher::referenced_brand_assets(index) {
+                let Ok(asset_url) = url.join(name) else {
+                    return failure("brand_asset_invalid");
+                };
+                let Ok(asset) =
+                    c::fetch_limit(client, asset_url, Method::GET, None, 4 * 1024 * 1024).await
+                else {
+                    return failure("brand_asset_invalid");
+                };
+                if asset.status != 200
+                    || asset
+                        .headers
+                        .get("content-type")
+                        .and_then(|value| value.to_str().ok())
+                        != Some("image/jpeg")
+                    || !tolight_coordinator::publisher::valid_brand_jpeg(&asset.body)
+                {
+                    return failure("brand_asset_invalid");
+                }
+            }
+            true
+        }
         Body::CertificateSha256(expected) => {
             format!("{:x}", Sha256::digest(&response.body)) == expected
         }
@@ -162,7 +192,7 @@ async fn get(client: &Client, url: Url, expected: u16, types: &[&str], body: Bod
                 Body::Authentication => value["error"]["code"] == "unauthorized",
                 Body::Manifest => manifest(&value),
                 Body::Agents => agents(&value),
-                Body::Nonempty | Body::CertificateSha256(_) => unreachable!(),
+                Body::Nonempty | Body::Index | Body::CertificateSha256(_) => unreachable!(),
             }
         }
     };
@@ -198,7 +228,7 @@ async fn check_lan(snapshot: &Value, report: &mut Value) -> Result {
     let web = Url::parse(&format!("http://{}:{}/", settings.ip, settings.web_port))?;
     let api = Url::parse(&format!("https://{}:{}/", settings.ip, settings.api_port))?;
     let (index, manifest, agents, authentication, guide, certificate, no_plaintext_api) = tokio::join!(
-        get(&plain, web.clone(), 200, &["text/html"], Body::Nonempty),
+        get(&plain, web.clone(), 200, &["text/html"], Body::Index),
         get(
             &plain,
             web.join("data/manifest.json")?,
@@ -307,7 +337,7 @@ pub(super) async fn run(snapshot: Value) -> Result {
                         &["application/json"],
                         Body::Authentication
                     ),
-                    get(&client, web.clone(), 200, &["text/html"], Body::Nonempty),
+                    get(&client, web.clone(), 200, &["text/html"], Body::Index),
                     get(
                         &client,
                         web.join("app.js")?,

@@ -23,7 +23,10 @@ impl Fixture {
         for path in [&source, &docs, &examples] {
             fs::create_dir(path).unwrap();
         }
-        for name in ["index.html", "app.js", "style.css", "robots.txt"] {
+        for name in ["index.html", "app.js", "style.css", "robots.txt"]
+            .into_iter()
+            .chain(publisher::BRAND_ASSETS)
+        {
             fs::copy(repo.join("public").join(name), source.join(name)).unwrap();
         }
         for name in [
@@ -235,6 +238,12 @@ async fn complete_real_document_bundle_is_exact_safe_idempotent_and_leaves_data_
     let fixture = Fixture::new();
     let data = tree(&fixture.config.public.dir.join("data"));
     fixture.install().await.unwrap();
+    for name in publisher::BRAND_ASSETS {
+        assert_eq!(
+            fs::read(fixture.source.join(name)).unwrap(),
+            fs::read(fixture.config.public.dir.join(name)).unwrap()
+        );
+    }
     for (input, output) in [
         (fixture.docs.join("join.md"), "join.md"),
         (
@@ -316,6 +325,8 @@ async fn missing_inputs_invalid_vectors_or_conversion_failures_leave_installed_f
     );
     for input in [
         fixture.source.join("app.js"),
+        fixture.source.join("long-shot-coffee.jpg"),
+        fixture.source.join("long-shot-seal.jpg"),
         fixture.docs.join("join.md"),
         fixture.docs.join("participant-spec.md"),
         fixture.docs.join("signing-vectors.json"),

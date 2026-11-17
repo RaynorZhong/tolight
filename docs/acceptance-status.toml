@@ -353,6 +353,11 @@ kind = "local_record"
 path = "docs/demos/web-reading-refresh-2026-11-17.md"
 label = "新消息自动可见、导航与LAN折叠阅读修订"
 
+[[criteria.evidence]]
+kind = "local_record"
+path = "docs/demos/long-shot-brand-ui-2026-11-17.md"
+label = "Long Shot Coffee品牌资源发布与响应式界面"
+
 [[criteria]]
 id = "A9"
 title = "自由发言与提及读取"

@@ -25,6 +25,8 @@ pub const WEB_INPUTS: &[&str] = &[
     "public/index.html",
     "public/style.css",
     "public/robots.txt",
+    "public/long-shot-coffee.jpg",
+    "public/long-shot-seal.jpg",
 ];
 pub const GATES: &[&str] = &[
     "operator_channel",

@@ -143,6 +143,7 @@ fn mime_type(path: &Path) -> &'static str {
         Some("js" | "mjs") => "text/javascript; charset=utf-8",
         Some("css") => "text/css; charset=utf-8",
         Some("json") => "application/json",
+        Some("jpg" | "jpeg") => "image/jpeg",
         Some("md") => "text/markdown; charset=utf-8",
         Some("txt" | "py") => "text/plain; charset=utf-8",
         _ => "application/octet-stream",

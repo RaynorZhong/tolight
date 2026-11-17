@@ -115,7 +115,14 @@ async fn actual_http_security_verifier_uses_downloaded_bytes_and_the_shared_rust
     let temporary = tempfile::tempdir().unwrap();
     let public = temporary.path().join("public");
     fs::create_dir(&public).unwrap();
-    for name in ["index.html", "app.js", "style.css", "robots.txt"] {
+    for name in [
+        "index.html",
+        "app.js",
+        "style.css",
+        "robots.txt",
+        "long-shot-coffee.jpg",
+        "long-shot-seal.jpg",
+    ] {
         fs::copy(repo.join("public").join(name), public.join(name)).unwrap();
     }
     copy_tree(
@@ -143,6 +150,17 @@ async fn actual_http_security_verifier_uses_downloaded_bytes_and_the_shared_rust
         String::from_utf8_lossy(&absent.stdout)
             .contains("no security reporting endpoint advertised")
     );
+    let brand = public.join("long-shot-coffee.jpg");
+    let brand_bytes = fs::read(&brand).unwrap();
+    fs::remove_file(&brand).unwrap();
+    assert!(!verify(&["--expect-no-security"]).status.success());
+    fs::write(&brand, b"not a JPEG").unwrap();
+    let invalid_brand = verify(&["--expect-no-security"]);
+    assert!(!invalid_brand.status.success());
+    assert!(
+        String::from_utf8_lossy(&invalid_brand.stderr).contains("invalid published brand JPEG")
+    );
+    fs::write(&brand, brand_bytes).unwrap();
     let known = public.join(".well-known");
     fs::create_dir(&known).unwrap();
     let security = known.join("security.txt");

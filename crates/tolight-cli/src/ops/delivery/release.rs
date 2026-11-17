@@ -192,6 +192,7 @@ fn inspect(
         "examples/python/check_vectors.py",
     ];
     required.extend_from_slice(WEB_SOURCE_FILES);
+    required.extend(referenced_brand_sources(&root));
     for name in &required {
         let path = root.join(name);
         if !path.is_file() {

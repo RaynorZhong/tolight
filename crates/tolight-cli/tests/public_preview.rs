@@ -5,6 +5,64 @@ use tolight_cli::public_app;
 use tower::ServiceExt;
 
 #[tokio::test]
+async fn supplied_brand_images_have_exact_bytes_jpeg_mime_head_and_conditional_cache() {
+    let dir = TempDir::new().unwrap();
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../public");
+    for name in tolight_coordinator::publisher::BRAND_ASSETS {
+        let bytes = fs::read(root.join(name)).unwrap();
+        fs::write(dir.path().join(name), &bytes).unwrap();
+        let app = public_app(dir.path()).await.unwrap();
+        let uri = format!("/{name}");
+        let response = app
+            .clone()
+            .oneshot(Request::get(&uri).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 200);
+        assert_eq!(response.headers()["content-type"], "image/jpeg");
+        assert_eq!(response.headers()["x-content-type-options"], "nosniff");
+        assert_eq!(response.headers()["cache-control"], "no-cache");
+        assert!(
+            response.headers()["content-security-policy"]
+                .to_str()
+                .unwrap()
+                .contains("img-src 'self'")
+        );
+        let etag = response.headers()["etag"].clone();
+        assert_eq!(
+            axum::body::to_bytes(response.into_body(), 4 * 1024 * 1024)
+                .await
+                .unwrap(),
+            bytes
+        );
+        let cached = app
+            .clone()
+            .oneshot(
+                Request::get(&uri)
+                    .header("if-none-match", etag)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(cached.status(), 304);
+        let head = app
+            .oneshot(Request::head(&uri).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(head.status(), 200);
+        assert_eq!(head.headers()["content-type"], "image/jpeg");
+        assert_eq!(head.headers()["content-length"], bytes.len().to_string());
+        assert!(
+            axum::body::to_bytes(head.into_body(), 4 * 1024 * 1024)
+                .await
+                .unwrap()
+                .is_empty()
+        );
+    }
+}
+
+#[tokio::test]
 async fn security_endpoint_has_exact_bytes_headers_and_no_general_dot_directory_access() {
     let dir = TempDir::new().unwrap();
     let known = dir.path().join(".well-known");

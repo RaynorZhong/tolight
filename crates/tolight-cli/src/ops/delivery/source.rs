@@ -380,6 +380,11 @@ fn entries(source: &Path) -> Result<Vec<Entry>> {
     {
         required.extend(WEB_SOURCE_FILES.iter().map(|name| (*name).to_owned()));
     }
+    required.extend(
+        referenced_brand_sources(source)
+            .into_iter()
+            .map(str::to_owned),
+    );
     let mut missing = vec![];
     for name in &required {
         let path = source.join(name);

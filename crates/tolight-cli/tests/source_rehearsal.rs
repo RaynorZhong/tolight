@@ -393,7 +393,13 @@ fn product_snapshot_requires_typescript_even_when_the_entire_frontend_is_missing
 
 #[test]
 fn typescript_snapshot_also_requires_the_static_page_inputs() {
-    for missing in ["public/index.html", "public/style.css", "public/robots.txt"] {
+    for missing in [
+        "public/index.html",
+        "public/style.css",
+        "public/robots.txt",
+        "public/long-shot-coffee.jpg",
+        "public/long-shot-seal.jpg",
+    ] {
         let f = Source::new();
         for name in WEB_INPUTS {
             write(&f.root, name, fs::read(repo().join(name)).unwrap());
@@ -411,6 +417,23 @@ fn typescript_snapshot_also_requires_the_static_page_inputs() {
             "{report}"
         );
     }
+}
+
+#[test]
+fn unreferenced_known_brand_images_are_snapshotted_exactly_even_when_gitignored() {
+    let f = Source::new();
+    let name = "public/long-shot-coffee.jpg";
+    write(&f.root, name, fs::read(repo().join(name)).unwrap());
+    write(&f.root, ".gitignore", format!(".local/\n/{name}\n"));
+    init(&f.root);
+    let (output, report) = f.invoke(true);
+    assert!(output.status.success(), "{report}");
+    let checkout = PathBuf::from(report["checkout"].as_str().unwrap());
+    assert_eq!(
+        fs::read(checkout.join(name)).unwrap(),
+        fs::read(f.root.join(name)).unwrap()
+    );
+    assert_eq!(git_ok(&checkout, &["ls-files", "--", name]), name);
 }
 
 #[cfg(unix)]

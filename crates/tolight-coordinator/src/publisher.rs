@@ -13,7 +13,7 @@ use tolight_core::config::Config;
 const CHUNK_SIZE: i64 = 200;
 #[path = "publisher_assets.rs"]
 mod assets;
-pub use assets::SecurityAssetMetadata;
+pub use assets::{BRAND_ASSETS, SecurityAssetMetadata, referenced_brand_assets, valid_brand_jpeg};
 
 /// Validate the optional public security.txt and its repository SECURITY.md policy.
 /// No endpoint is fabricated when the source has no authorized reporting file.
@@ -820,6 +820,79 @@ mod tests {
             }
             assert!(start.elapsed() < Duration::from_secs(3));
             tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    }
+
+    #[tokio::test]
+    async fn brand_jpegs_are_preflighted_and_installed_as_exact_binary_assets() {
+        let tmp = tempfile::tempdir().unwrap();
+        let source = tmp.path().join("source");
+        fs::create_dir(&source).unwrap();
+        let mut config = Config::default();
+        config.public.dir = tmp.path().join("public");
+        fs::create_dir(&config.public.dir).unwrap();
+        fs::write(
+            config.public.dir.join("index.html"),
+            "previous installed index",
+        )
+        .unwrap();
+        for name in ["app.js", "style.css", "robots.txt"] {
+            fs::write(source.join(name), format!("asset {name}")).unwrap();
+        }
+        fs::write(
+            source.join("index.html"),
+            "<img src=\"long-shot-coffee.jpg\"><img src=\"long-shot-seal.jpg\">",
+        )
+        .unwrap();
+        let coffee = include_bytes!("../../../public/long-shot-coffee.jpg");
+        let seal = include_bytes!("../../../public/long-shot-seal.jpg");
+        assert!(valid_brand_jpeg(coffee));
+        assert!(valid_brand_jpeg(seal));
+        fs::write(source.join(BRAND_ASSETS[0]), coffee).unwrap();
+        assert!(install_assets(&config, &source).await.is_err());
+        assert_eq!(
+            fs::read(config.public.dir.join("index.html")).unwrap(),
+            b"previous installed index"
+        );
+        assert!(!config.public.dir.join(BRAND_ASSETS[0]).exists());
+        fs::write(source.join(BRAND_ASSETS[1]), seal).unwrap();
+        install_assets(&config, &source).await.unwrap();
+        for name in BRAND_ASSETS {
+            assert_eq!(
+                fs::read(config.public.dir.join(name)).unwrap(),
+                fs::read(source.join(name)).unwrap()
+            );
+        }
+        let index = fs::read(config.public.dir.join("index.html")).unwrap();
+        let mut broken_segment = seal.to_vec();
+        broken_segment[4..6].copy_from_slice(&[0xff, 0xff]);
+        for invalid in [
+            b"not a JPEG".to_vec(),
+            seal[..seal.len() - 2].to_vec(),
+            broken_segment,
+            vec![0; 4 * 1024 * 1024 + 1],
+        ] {
+            fs::write(source.join(BRAND_ASSETS[1]), invalid).unwrap();
+            assert!(install_assets(&config, &source).await.is_err());
+            assert_eq!(
+                fs::read(config.public.dir.join("index.html")).unwrap(),
+                index
+            );
+            assert_eq!(
+                fs::read(config.public.dir.join(BRAND_ASSETS[1])).unwrap(),
+                seal.as_slice()
+            );
+        }
+        #[cfg(unix)]
+        {
+            fs::remove_file(source.join(BRAND_ASSETS[1])).unwrap();
+            std::os::unix::fs::symlink(source.join(BRAND_ASSETS[0]), source.join(BRAND_ASSETS[1]))
+                .unwrap();
+            assert!(install_assets(&config, &source).await.is_err());
+            assert_eq!(
+                fs::read(config.public.dir.join("index.html")).unwrap(),
+                index
+            );
         }
     }
 

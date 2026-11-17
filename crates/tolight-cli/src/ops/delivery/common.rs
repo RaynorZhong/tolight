@@ -71,6 +71,18 @@ pub const WEB_SOURCE_FILES: &[&str] = &[
     "public/style.css",
     "public/robots.txt",
 ];
+pub fn referenced_brand_sources(root: &Path) -> Vec<&'static str> {
+    let Ok(index) = fs::read_to_string(root.join("public/index.html")) else {
+        return Vec::new();
+    };
+    ["public/long-shot-coffee.jpg", "public/long-shot-seal.jpg"]
+        .into_iter()
+        .filter(|path| {
+            index.contains(path.trim_start_matches("public/"))
+                || fs::symlink_metadata(root.join(path)).is_ok()
+        })
+        .collect()
+}
 pub const PRIVATE_DIRS: &[&str] = &[
     ".git",
     ".local",

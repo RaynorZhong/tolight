@@ -307,6 +307,8 @@ fn ignored_required_inputs_must_exist_in_the_checked_commit() {
         "package-lock.json",
         "frontend/app.ts",
         "flake.lock",
+        "public/long-shot-coffee.jpg",
+        "public/long-shot-seal.jpg",
     ] {
         let mut f = Release::new();
         f.production("https://tolight.com/security-report");
