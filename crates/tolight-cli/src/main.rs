@@ -211,7 +211,7 @@ async fn operate(store: &Store, config: &Config, command: Operator) -> Result<()
                 println!(
                     "client_message_id={} at={} outcome={} reason={} detail={} event_seq={:?}",
                     escape(&attempt.client_message_id),
-                    attempt.created_at.to_rfc3339(),
+                    tolight_core::datetime::rfc3339(attempt.created_at),
                     escape(&attempt.outcome),
                     escape(attempt.reason_code.as_deref().unwrap_or("-")),
                     escape(attempt.reason_detail.as_deref().unwrap_or("-")),
@@ -304,8 +304,8 @@ async fn operate(store: &Store, config: &Config, command: Operator) -> Result<()
                 let previous = operator::review(store, config, &agent_id).await?;
                 let until = match (for_duration, until) {
                     (Some(duration), None) => Some(
-                        chrono::Utc::now()
-                            .checked_add_signed(parse_duration(&duration)?)
+                        time::OffsetDateTime::now_utc()
+                            .checked_add(parse_duration(&duration)?)
                             .ok_or("禁言期限超出范围")?,
                     ),
                     (None, Some(until)) => Some(parse_utc(&until)?),
@@ -347,12 +347,12 @@ async fn operate(store: &Store, config: &Config, command: Operator) -> Result<()
             AgentCommand::List { pending } => {
                 for agent in operator::list(store, config, pending).await? {
                     let expires = agent.registered_at
-                        + chrono::Duration::seconds(config.application_ttl as i64);
+                        + time::Duration::seconds(config.application_ttl as i64);
                     if pending {
                         println!(
                             "{} expires_at={}",
                             operator::render_agent(&agent),
-                            expires.to_rfc3339()
+                            tolight_core::datetime::rfc3339(expires)
                         );
                         let data = tolight_coordinator_store::conformance::ConformanceData {
                             agent: agent.clone(),
@@ -362,7 +362,7 @@ async fn operate(store: &Store, config: &Config, command: Operator) -> Result<()
                             "conformance={}",
                             tolight_coordinator::conformance_session::self_info(
                                 &data,
-                                chrono::Utc::now(),
+                                time::OffsetDateTime::now_utc(),
                                 config
                             )
                         );
@@ -440,7 +440,7 @@ async fn operate(store: &Store, config: &Config, command: Operator) -> Result<()
     Ok(())
 }
 
-fn parse_duration(value: &str) -> Result<chrono::Duration> {
+fn parse_duration(value: &str) -> Result<time::Duration> {
     if value.len() < 2 {
         return Err("时长格式应为 30m、2h、7d 或 5s".into());
     }
@@ -463,13 +463,13 @@ fn parse_duration(value: &str) -> Result<chrono::Duration> {
         .checked_mul(multiplier)
         .filter(|value| *value > 0 && *value <= 366 * 86400)
         .ok_or("时长必须大于零且不超过366天")?;
-    Ok(chrono::Duration::seconds(seconds))
+    Ok(time::Duration::seconds(seconds))
 }
-fn parse_utc(value: &str) -> Result<chrono::DateTime<chrono::Utc>> {
+fn parse_utc(value: &str) -> Result<time::OffsetDateTime> {
     if !value.ends_with('Z') {
         return Err("时间必须是以 Z 结尾的 UTC RFC3339".into());
     }
-    Ok(chrono::DateTime::parse_from_rfc3339(value)?.with_timezone(&chrono::Utc))
+    Ok(tolight_core::datetime::parse_rfc3339(value)?)
 }
 
 fn terminal_json(value: &impl serde::Serialize) -> Result<String> {
@@ -493,9 +493,9 @@ fn mute_label(agent: &tolight_coordinator_store::Agent) -> String {
         "无限期，直到unmute".into()
     } else if let Some(until) = agent
         .muted_until
-        .filter(|until| *until > chrono::Utc::now())
+        .filter(|until| *until > time::OffsetDateTime::now_utc())
     {
-        until.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+        tolight_core::datetime::utc_seconds(until)
     } else {
         "已到期，无有效禁言".into()
     }
@@ -627,7 +627,7 @@ mod controls_parsing_tests {
     #[test]
     fn finite_durations_and_explicit_utc_are_strict() {
         for (text, seconds) in [("30m", 1800), ("2h", 7200), ("7d", 604800), ("1s", 1)] {
-            assert_eq!(parse_duration(text).unwrap().num_seconds(), seconds);
+            assert_eq!(parse_duration(text).unwrap().whole_seconds(), seconds);
         }
         for value in [
             "0m",
@@ -648,7 +648,7 @@ mod controls_parsing_tests {
             assert!(parse_utc(value).is_err());
         }
         assert_eq!(
-            parse_utc("2026-11-14T00:00:00Z").unwrap().timestamp(),
+            parse_utc("2026-11-14T00:00:00Z").unwrap().unix_timestamp(),
             1794614400
         );
     }

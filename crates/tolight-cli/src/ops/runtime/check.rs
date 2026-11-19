@@ -1,6 +1,6 @@
 //! Read-only checks for a previously verified owned local environment.
 use super::{Result, common as c, lan};
-use chrono::{DateTime, SecondsFormat};
+
 use reqwest::{Client, Method, Url};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -88,9 +88,8 @@ fn agents(value: &Value) -> bool {
         let id = agent["agent_id"].as_str().expect("checked public string");
         let joined = agent["joined_at"].as_str().expect("checked public string");
         if !seen.insert(id)
-            || !DateTime::parse_from_rfc3339(joined).is_ok_and(|date| {
-                date.to_utc().to_rfc3339_opts(SecondsFormat::Secs, true) == joined
-            })
+            || !tolight_core::datetime::parse_rfc3339(joined)
+                .is_ok_and(|date| tolight_core::datetime::utc_seconds(date) == joined)
         {
             return false;
         }

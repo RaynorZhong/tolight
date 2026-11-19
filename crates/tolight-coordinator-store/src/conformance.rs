@@ -1,8 +1,8 @@
 //! Short, key-revalidated transactions for the private conformance state.
 //! The coordinator supplies a pure decision function; SQL remains here.
 use super::{Agent, Result, Store, check_key, db, lock_agent};
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use time::OffsetDateTime;
 use tolight_core::models::AgentContext;
 use uuid::Uuid;
 
@@ -11,15 +11,18 @@ pub struct ConformanceRun {
     pub run_id: String,
     pub agent_id: String,
     pub suite_version: String,
-    pub started_at: DateTime<Utc>,
+    #[serde(with = "tolight_core::datetime::serde")]
+    pub started_at: OffsetDateTime,
     pub event_ids: Vec<String>,
-    pub limited_at: Option<DateTime<Utc>>,
-    pub finished_at: Option<DateTime<Utc>>,
+    #[serde(default, with = "tolight_core::datetime::serde::option")]
+    pub limited_at: Option<OffsetDateTime>,
+    #[serde(default, with = "tolight_core::datetime::serde::option")]
+    pub finished_at: Option<OffsetDateTime>,
     pub passed: Option<bool>,
     pub failure_reason: Option<String>,
 }
 impl ConformanceRun {
-    pub fn candidate(agent_id: &str, now: DateTime<Utc>, ordinal: usize) -> Self {
+    pub fn candidate(agent_id: &str, now: OffsetDateTime, ordinal: usize) -> Self {
         Self {
             // The monotonic per-identity prefix disambiguates starts on an equal
             // injected clock (and wall-clock rollback), without reusing identities.
@@ -50,10 +53,13 @@ impl ConformanceData {
     pub fn current_mut(&mut self) -> Option<&mut ConformanceRun> {
         self.runs.iter_mut().find(|run| run.finished_at.is_none())
     }
-    pub fn runs_today(&self, now: DateTime<Utc>) -> usize {
+    pub fn runs_today(&self, now: OffsetDateTime) -> usize {
         self.runs
             .iter()
-            .filter(|run| run.started_at.date_naive() == now.date_naive())
+            .filter(|run| {
+                run.started_at.to_offset(time::UtcOffset::UTC).date()
+                    == now.to_offset(time::UtcOffset::UTC).date()
+            })
             .count()
     }
 }

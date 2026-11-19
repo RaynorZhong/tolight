@@ -1,6 +1,7 @@
 //! Operator actions are local. Confirmation happens outside these DB transactions.
+use tolight_core::datetime::TimestampExt;
 
-use chrono::Duration;
+use time::Duration;
 use tolight_coordinator_store::{
     Agent, ApplicationInput as StoredApplication, ApplyLimits, ReviewSnapshot, ReviewedControl,
     Store,
@@ -171,7 +172,7 @@ pub fn render_agent(agent: &Agent) -> String {
         escape(agent.state_reason.as_deref().unwrap_or("-")),
         agent.application_id,
         agent.application_revision,
-        agent.registered_at,
+        tolight_core::datetime::display_utc(agent.registered_at),
         agent
             .joined_at
             .map(|time| time.to_rfc3339())
@@ -215,7 +216,7 @@ pub async fn mute(
     store: &Store,
     config: &Config,
     id: &str,
-    until: Option<chrono::DateTime<chrono::Utc>>,
+    until: Option<time::OffsetDateTime>,
     reason_code: &str,
 ) -> Result<Agent, ApiError> {
     ready(store, config).await?;
@@ -286,7 +287,7 @@ pub async fn attempts_since(
     store: &Store,
     _config: &Config,
     id: &str,
-    since: Option<chrono::DateTime<chrono::Utc>>,
+    since: Option<time::OffsetDateTime>,
 ) -> Result<Vec<tolight_coordinator_store::controls::Attempt>, ApiError> {
     store.check_schema().await?;
     store.attempts_since(id, since).await
@@ -295,7 +296,7 @@ pub async fn attempts_since(
 /// Online diagnostic only: unlike list/review, never cleans expired identities.
 pub async fn audit(
     store: &Store,
-    since: Option<chrono::DateTime<chrono::Utc>>,
+    since: Option<time::OffsetDateTime>,
     agent_id: Option<&str>,
     limit: usize,
 ) -> Result<tolight_coordinator_store::audit::AuditPage, ApiError> {

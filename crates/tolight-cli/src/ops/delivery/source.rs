@@ -1,5 +1,4 @@
 use super::{Result, SourceArgs, common::*};
-use chrono::Utc;
 use serde_json::{Value, json};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -13,6 +12,7 @@ use std::{
     sync::atomic::Ordering,
     time::Duration,
 };
+use time::OffsetDateTime;
 
 #[derive(Debug)]
 struct Failure {
@@ -783,7 +783,7 @@ fn run_inner(args: SourceArgs) -> Result<()> {
         .keep();
     private_dir(&work)?;
     let mut report = json!({"schema":"tolight-source-rehearsal/1","scope":"local_unpublished_source_rehearsal","status":"failed","built":false,"published":false,"user_repository_modified":false,
-        "started_at":Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Micros,true),"source":source,"work_dir":work,"report":work.join("report.json")});
+        "started_at":tolight_core::datetime::utc_micros(OffsetDateTime::now_utc()),"source":source,"work_dir":work,"report":work.join("report.json")});
     if let Err(error) = rehearse(&args, &source, &work, &mut report) {
         if let Some(error) = error.downcast_ref::<Failure>() {
             report["error_code"] = json!(error.code);
@@ -796,7 +796,7 @@ fn run_inner(args: SourceArgs) -> Result<()> {
             })
         }
     }
-    report["finished_at"] = json!(Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Micros, true));
+    report["finished_at"] = json!(tolight_core::datetime::utc_micros(OffsetDateTime::now_utc()));
     private_json(&work.join("report.json"), &report)?;
     let mut summary = serde_json::Map::new();
     for key in [

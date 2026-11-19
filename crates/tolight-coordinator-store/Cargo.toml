@@ -8,7 +8,7 @@ repository.workspace = true
 
 [dependencies]
 sha2.workspace = true
-chrono.workspace = true
+time.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sqlx.workspace = true

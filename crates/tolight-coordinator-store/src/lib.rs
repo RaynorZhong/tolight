@@ -1,8 +1,8 @@
 //! PostgreSQL persistence. Only this crate contains SQL or SQLx types.
-use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sqlx::{PgConnection, PgPool, Postgres, Row, Transaction, postgres::PgPoolOptions};
+use time::{Duration, OffsetDateTime};
 use tolight_core::{mentions, models::ApiError};
 use uuid::Uuid;
 
@@ -29,18 +29,24 @@ pub struct Agent {
     pub owner_contact: String,
     pub state: String,
     pub state_reason: Option<String>,
-    pub state_changed_at: DateTime<Utc>,
-    pub registered_at: DateTime<Utc>,
-    pub joined_at: Option<DateTime<Utc>>,
-    pub muted_until: Option<DateTime<Utc>>,
+    #[serde(with = "tolight_core::datetime::serde")]
+    pub state_changed_at: OffsetDateTime,
+    #[serde(with = "tolight_core::datetime::serde")]
+    pub registered_at: OffsetDateTime,
+    #[serde(default, with = "tolight_core::datetime::serde::option")]
+    pub joined_at: Option<OffsetDateTime>,
+    #[serde(default, with = "tolight_core::datetime::serde::option")]
+    pub muted_until: Option<OffsetDateTime>,
     pub muted_indefinitely: bool,
     pub mute_reason: Option<String>,
     pub conformance_suite_version: Option<String>,
-    pub conformance_passed_at: Option<DateTime<Utc>>,
-    pub last_seen_at: Option<DateTime<Utc>>,
+    #[serde(default, with = "tolight_core::datetime::serde::option")]
+    pub conformance_passed_at: Option<OffsetDateTime>,
+    #[serde(default, with = "tolight_core::datetime::serde::option")]
+    pub last_seen_at: Option<OffsetDateTime>,
     pub public_key: Option<String>,
-    #[serde(default)]
-    pub public_key_registered_at: Option<DateTime<Utc>>,
+    #[serde(default, with = "tolight_core::datetime::serde::option")]
+    pub public_key_registered_at: Option<OffsetDateTime>,
 }
 pub type ReviewSnapshot = Agent;
 
@@ -126,7 +132,8 @@ pub struct RoomState {
     pub paused: bool,
     pub applications_open: bool,
     pub last_seq: i64,
-    pub updated_at: DateTime<Utc>,
+    #[serde(with = "tolight_core::datetime::serde")]
+    pub updated_at: OffsetDateTime,
 }
 #[derive(Clone, Debug)]
 pub struct PublicSnapshot {
@@ -146,7 +153,8 @@ pub struct ReadSnapshot {
 pub struct Usage {
     pub minute: usize,
     pub day: usize,
-    pub next_allowed_at: Option<DateTime<Utc>>,
+    #[serde(default, with = "tolight_core::datetime::serde::option")]
+    pub next_allowed_at: Option<OffsetDateTime>,
 }
 
 macro_rules! agent_sql {
@@ -518,7 +526,7 @@ async fn application_lock(tx: &mut Transaction<'_, Postgres>) -> Result<()> {
     Ok(())
 }
 async fn cleanup(tx: &mut Transaction<'_, Postgres>, ttl: Duration) -> Result<u64> {
-    Ok(sqlx::query("DELETE FROM agents WHERE state IN ('PENDING','REJECTED') AND registered_at < clock_timestamp()-make_interval(secs=>$1)").bind(ttl.num_seconds() as f64).execute(&mut **tx).await.map_err(db)?.rows_affected())
+    Ok(sqlx::query("DELETE FROM agents WHERE state IN ('PENDING','REJECTED') AND registered_at < clock_timestamp()-make_interval(secs=>$1)").bind(ttl.whole_seconds() as f64).execute(&mut **tx).await.map_err(db)?.rows_affected())
 }
 async fn agent_in(tx: &mut Transaction<'_, Postgres>, id: &str) -> Result<Option<Agent>> {
     sqlx::query_as(agent_sql!("FROM agents a WHERE a.agent_id=$1"))
@@ -960,7 +968,7 @@ impl Store {
         tx.commit().await.map_err(db)?;
         Ok(true)
     }
-    pub async fn mute(&self, id: &str, until: Option<DateTime<Utc>>, reason: &str) -> Result<()> {
+    pub async fn mute(&self, id: &str, until: Option<OffsetDateTime>, reason: &str) -> Result<()> {
         let mut tx = self.pool.begin().await.map_err(db)?;
         let agent = lock_agent(&mut tx, id).await?;
         if agent.state != "ACTIVE" {
@@ -1017,13 +1025,13 @@ impl Store {
         }
         match control {
             ReviewedControl::Mute { seconds, reason } => {
-                let now: DateTime<Utc> = sqlx::query_scalar("SELECT clock_timestamp()")
+                let now: OffsetDateTime = sqlx::query_scalar("SELECT clock_timestamp()")
                     .fetch_one(&mut *tx)
                     .await
                     .map_err(db)?;
                 let until = seconds
                     .map(|seconds| {
-                        now.checked_add_signed(Duration::seconds(seconds as i64))
+                        now.checked_add(Duration::seconds(seconds as i64))
                             .ok_or_else(|| {
                                 ApiError::new("bad_request").with("field", "mute_seconds")
                             })
@@ -1099,7 +1107,7 @@ impl Store {
 async fn mute_in(
     tx: &mut Transaction<'_, Postgres>,
     agent: &Agent,
-    until: Option<DateTime<Utc>>,
+    until: Option<OffsetDateTime>,
     reason: &str,
 ) -> Result<()> {
     sqlx::query(
@@ -1119,7 +1127,7 @@ async fn mute_in(
         None,
         None,
         Some(reason),
-        Some(json!({"until":until})),
+        Some(json!({"until":until.map(tolight_core::datetime::json_timestamp)})),
     )
     .await
 }
@@ -1185,11 +1193,11 @@ async fn append_event(
     reply: Option<i64>,
     target: Option<i64>,
     reason: Option<&str>,
-    clock_override: Option<DateTime<Utc>>,
+    clock_override: Option<OffsetDateTime>,
 ) -> Result<(i64, String)> {
     // room_state is the only sequence allocator. Rollback returns the number,
     // and the previous event clamps both transaction-order and wall-clock skew.
-    let (seq,created):(i64,DateTime<Utc>)=sqlx::query_as("UPDATE room_state SET last_seq=last_seq+1,updated_at=GREATEST(COALESCE($1,clock_timestamp()),COALESCE((SELECT created_at FROM events ORDER BY seq DESC LIMIT 1),'-infinity'::timestamptz)) WHERE singleton RETURNING last_seq,updated_at")
+    let (seq,created):(i64,OffsetDateTime)=sqlx::query_as("UPDATE room_state SET last_seq=last_seq+1,updated_at=GREATEST(COALESCE($1,clock_timestamp()),COALESCE((SELECT created_at FROM events ORDER BY seq DESC LIMIT 1),'-infinity'::timestamptz)) WHERE singleton RETURNING last_seq,updated_at")
         .bind(clock_override).fetch_one(&mut **tx).await.map_err(db)?;
     let event_id = Uuid::new_v4().to_string();
     sqlx::query("INSERT INTO events(seq,event_id,kind,agent_id,public_text,reply_to_seq,target_seq,reason_code,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)")
@@ -1200,7 +1208,7 @@ async fn append_event(
 impl Store {
     pub async fn usage(&self, id: &str, limits: &SendLimits) -> Result<Usage> {
         let mut tx = self.pool.begin().await.map_err(db)?;
-        let now: DateTime<Utc> = sqlx::query_scalar("SELECT clock_timestamp()")
+        let now: OffsetDateTime = sqlx::query_scalar("SELECT clock_timestamp()")
             .fetch_one(&mut *tx)
             .await
             .map_err(db)?;
@@ -1254,7 +1262,7 @@ impl Store {
         if agent.state != "ACTIVE" {
             return Err(ApiError::new("agent_not_active"));
         }
-        let now: DateTime<Utc> = sqlx::query_scalar("SELECT clock_timestamp()")
+        let now: OffsetDateTime = sqlx::query_scalar("SELECT clock_timestamp()")
             .fetch_one(&mut *tx)
             .await
             .map_err(db)?;
@@ -1417,12 +1425,11 @@ impl Store {
     }
 }
 
-pub fn format_time(time: DateTime<Utc>) -> String {
-    time.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+pub fn format_time(time: OffsetDateTime) -> String {
+    tolight_core::datetime::utc_seconds(time)
 }
-fn seconds_until(now: DateTime<Utc>, next: DateTime<Utc>) -> u64 {
-    (next - now)
-        .to_std()
+fn seconds_until(now: OffsetDateTime, next: OffsetDateTime) -> u64 {
+    std::time::Duration::try_from(next - now)
         .map(|duration| duration.as_secs() + u64::from(duration.subsec_nanos() > 0))
         .unwrap_or(1)
         .max(1)
@@ -1431,15 +1438,15 @@ async fn usage_in(
     tx: &mut Transaction<'_, Postgres>,
     id: &str,
     limits: &SendLimits,
-    now: DateTime<Utc>,
+    now: OffsetDateTime,
 ) -> Result<Usage> {
-    let times:Vec<DateTime<Utc>>=sqlx::query_scalar("SELECT created_at FROM message_attempts WHERE agent_id=$1 AND created_at>$2 ORDER BY created_at").bind(id).bind(now-Duration::days(1)).fetch_all(&mut **tx).await.map_err(db)?;
+    let times:Vec<OffsetDateTime>=sqlx::query_scalar("SELECT created_at FROM message_attempts WHERE agent_id=$1 AND created_at>$2 ORDER BY created_at").bind(id).bind(now-Duration::days(1)).fetch_all(&mut **tx).await.map_err(db)?;
     let minute: Vec<_> = times
         .iter()
         .copied()
         .filter(|time| *time > now - Duration::seconds(60))
         .collect();
-    let recovery = |times: &[DateTime<Utc>], limit: usize, window: Duration| {
+    let recovery = |times: &[OffsetDateTime], limit: usize, window: Duration| {
         if limit > 0 && times.len() >= limit {
             Some(times[times.len() - limit] + window)
         } else {
@@ -1476,7 +1483,7 @@ mod transaction_tests {
     use super::*;
     #[test]
     fn retry_after_rounds_up_even_submillisecond_remainders() {
-        let now = Utc::now();
+        let now = OffsetDateTime::now_utc();
         assert_eq!(seconds_until(now, now + Duration::seconds(1)), 1);
         assert_eq!(
             seconds_until(now, now + Duration::seconds(1) + Duration::nanoseconds(1)),
@@ -1484,6 +1491,7 @@ mod transaction_tests {
         );
         assert_eq!(seconds_until(now, now + Duration::nanoseconds(1)), 1);
         assert_eq!(seconds_until(now, now), 1);
+        assert_eq!(seconds_until(now, now - Duration::nanoseconds(1)), 1);
     }
 
     #[sqlx::test(migrations = "./migrations")]
@@ -1521,10 +1529,10 @@ mod transaction_tests {
         assert_eq!(reserved, 2);
         rolled_back.rollback().await.unwrap();
         assert_eq!(store.room_state().await.unwrap().last_seq, 1);
-        let captured_before = Utc::now();
+        let captured_before = OffsetDateTime::now_utc();
         let mut tx = store.pool.begin().await.unwrap();
         lock_room(&mut tx).await.unwrap();
-        let future = Utc::now() + Duration::hours(1);
+        let future = OffsetDateTime::now_utc() + Duration::hours(1);
         let (seq, future_event_id) = append_event(
             &mut tx,
             "agent_message",
@@ -1576,14 +1584,14 @@ mod transaction_tests {
             .unwrap();
         store.retract(&future_event_id, "other").await.unwrap();
         store.kick("alice", "other").await.unwrap();
-        let attempts: DateTime<Utc> = sqlx::query_scalar(
+        let attempts: OffsetDateTime = sqlx::query_scalar(
             "SELECT created_at FROM message_attempts WHERE client_message_id='actual-attempt-time'",
         )
         .fetch_one(&store.pool)
         .await
         .unwrap();
         assert!(attempts < future);
-        let rows: Vec<(i64, DateTime<Utc>)> =
+        let rows: Vec<(i64, OffsetDateTime)> =
             sqlx::query_as("SELECT seq,created_at FROM events ORDER BY seq")
                 .fetch_all(&store.pool)
                 .await

@@ -5,7 +5,6 @@ use super::{
     recovery::{RecoveryTools, finish, reconcile, source_reference, step},
     root, wal,
 };
-use chrono::{DateTime, Utc};
 use serde_json::{Value, json};
 use std::{
     collections::BTreeSet,
@@ -14,6 +13,34 @@ use std::{
     process::Stdio,
     time::{Duration, Instant},
 };
+use time::OffsetDateTime;
+
+fn parse_postgres_target(value: &str) -> Result<OffsetDateTime> {
+    if let Ok(date) = tolight_core::datetime::parse_rfc3339(value) {
+        return Ok(date);
+    }
+    // PostgreSQL prints its configured target with a space separator and may
+    // abbreviate whole-hour offsets as +00 or print the compact +0000 form.
+    let (date, clock) = value
+        .split_once(' ')
+        .ok_or("invalid PostgreSQL timestamp")?;
+    let offset_start = clock
+        .find(['+', '-'])
+        .ok_or("PostgreSQL timestamp offset missing")?;
+    let (clock, offset) = clock.split_at(offset_start);
+    if !offset.is_ascii() {
+        return Err("invalid PostgreSQL timestamp offset".into());
+    }
+    let offset = match offset.len() {
+        3 => format!("{offset}:00"),
+        5 => format!("{}:{}", &offset[..3], &offset[3..]),
+        6 => offset.to_owned(),
+        _ => return Err("invalid PostgreSQL timestamp offset".into()),
+    };
+    Ok(tolight_core::datetime::parse_rfc3339(&format!(
+        "{date}T{clock}{offset}"
+    ))?)
+}
 
 struct TargetPg {
     data: PathBuf,
@@ -112,7 +139,7 @@ struct RecoveryStartup<'a> {
     archive: &'a Path,
     work: &'a Path,
     public: &'a Path,
-    target: Option<DateTime<Utc>>,
+    target: Option<OffsetDateTime>,
     timeout: u64,
     env: &'a Env,
 }
@@ -169,7 +196,7 @@ fn start_recovered(
     if let Some(target) = target {
         settings.push_str(&format!(
             "recovery_target_time={}\nrecovery_target_inclusive=on\n",
-            quote(target.to_rfc3339())
+            quote(tolight_core::datetime::rfc3339(target))
         ))
     }
     replace_text(&data.join("postgresql.conf"), &settings)?;
@@ -339,12 +366,14 @@ pub fn pitr(args: PitrDrill) -> Result<()> {
             .unwrap()
             .remove("unknown_control_interval");
         let original = json_file(&snapshot)?;
-        let window = (utc(original["exported_at"]
-            .as_str()
-            .ok_or("source export time")?)?
-            - target_time)
-            .num_microseconds()
-            .ok_or("source time overflow")? as f64
+        let window = i64::try_from(
+            (utc(original["exported_at"]
+                .as_str()
+                .ok_or("source export time")?)?
+                - target_time)
+                .whole_microseconds(),
+        )
+        .map_err(|_| "source time overflow")? as f64
             / 1e6;
         if window < 0.0 {
             return Err("restore target is after frozen source".into());
@@ -412,9 +441,7 @@ pub fn pitr(args: PitrDrill) -> Result<()> {
         if values[0] != "f" || values[1] != "off" {
             return Err("recovery did not promote with archiving disabled".into());
         }
-        let actual = DateTime::parse_from_str(&values[2], "%Y-%m-%d %H:%M:%S%.f%#z")
-            .or_else(|_| DateTime::parse_from_rfc3339(&values[2]))?
-            .with_timezone(&Utc);
+        let actual = parse_postgres_target(&values[2])?;
         if actual != target_time {
             return Err("PostgreSQL used a different restore target".into());
         }
@@ -690,4 +717,43 @@ pub fn inspect(args: PitrInspect) -> Result<()> {
     }
     report["importable_control_snapshot_retained"] = raw.exists().into();
     finish(&work, &mut report, result, true)
+}
+
+#[cfg(test)]
+mod timestamp_tests {
+    use super::*;
+
+    #[test]
+    fn postgres_target_preserves_fractional_seconds_and_numeric_offsets() {
+        for (input, expected) in [
+            ("2026-11-19 00:12:34+00", "2026-11-19T00:12:34Z"),
+            (
+                "2026-11-19 08:12:34.123456+08",
+                "2026-11-19T00:12:34.123456Z",
+            ),
+            (
+                "2026-11-18 18:42:34.123456789-0530",
+                "2026-11-19T00:12:34.123456789Z",
+            ),
+            ("2026-11-19 00:12:34.1+00:00", "2026-11-19T00:12:34.1Z"),
+            ("2026-11-19T00:12:34.123456Z", "2026-11-19T00:12:34.123456Z"),
+        ] {
+            assert_eq!(
+                parse_postgres_target(input).unwrap(),
+                tolight_core::datetime::parse_rfc3339(expected).unwrap(),
+                "{input}"
+            );
+        }
+        for input in [
+            "infinity",
+            "2026-11-19 00:12:34",
+            "2026-02-30 00:12:34+00",
+            "2026-11-19 00:12:34+25",
+            "2026-11-19 00:12:34+000",
+            "2026-11-19 00:12:34+0é0",
+            "2026-11-19 00:12:34.not-a-fraction+00",
+        ] {
+            assert!(parse_postgres_target(input).is_err(), "{input}");
+        }
+    }
 }

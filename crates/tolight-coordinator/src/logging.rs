@@ -39,12 +39,12 @@ impl Logger {
         endpoint: Option<&str>,
         status: Option<u16>,
     ) -> io::Result<()> {
-        self.write(serde_json::json!({"at":chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs,true),"event":event,"endpoint":endpoint,"status":status}))
+        self.write(serde_json::json!({"at":tolight_core::datetime::utc_seconds(time::OffsetDateTime::now_utc()),"event":event,"endpoint":endpoint,"status":status}))
     }
     /// Configuration values only, never the request's Host or forwarded headers.
     pub fn participant_hosts(&self, hosts: &[String]) -> io::Result<()> {
         for host in hosts {
-            self.write(serde_json::json!({"at":chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs,true),"event":"participant_host","host":host}))?;
+            self.write(serde_json::json!({"at":tolight_core::datetime::utc_seconds(time::OffsetDateTime::now_utc()),"event":"participant_host","host":host}))?;
         }
         Ok(())
     }

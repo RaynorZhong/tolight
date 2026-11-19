@@ -1,5 +1,5 @@
 //! Bounded online Operator audit reads. No cleanup, controls, or serve lease.
-use super::{DateTime, Result, Store, Utc, controls::SnapshotAction, db};
+use super::{OffsetDateTime, Result, Store, controls::SnapshotAction, db};
 use serde::Serialize;
 use tolight_core::{mentions::valid_agent_id, models::ApiError};
 
@@ -17,7 +17,7 @@ impl Store {
     /// explicit; this is not an offline recovery snapshot or a mutable cursor.
     pub async fn operator_audit(
         &self,
-        since: Option<DateTime<Utc>>,
+        since: Option<OffsetDateTime>,
         agent_id: Option<&str>,
         limit: usize,
     ) -> Result<AuditPage> {

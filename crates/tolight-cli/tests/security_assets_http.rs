@@ -164,7 +164,9 @@ async fn actual_http_security_verifier_uses_downloaded_bytes_and_the_shared_rust
     let known = public.join(".well-known");
     fs::create_dir(&known).unwrap();
     let security = known.join("security.txt");
-    let expires = (chrono::Utc::now() + chrono::Duration::days(180)).to_rfc3339();
+    let expires = tolight_core::datetime::rfc3339(
+        time::OffsetDateTime::now_utc() + time::Duration::days(180),
+    );
     fs::write(&security, format!("Contact: mailto:synthetic@tolight.test\nExpires: {expires}\nCanonical: https://tolight.test/.well-known/security.txt\n")).unwrap();
     let policy = temporary.path().join("SECURITY.md");
     fs::write(

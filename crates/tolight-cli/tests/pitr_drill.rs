@@ -1,4 +1,3 @@
-use chrono::{Duration, SecondsFormat, Utc};
 use serde_json::Value;
 use std::{
     collections::BTreeMap,
@@ -8,6 +7,7 @@ use std::{
     time::{Duration as Wait, Instant},
 };
 use tempfile::TempDir;
+use time::{Duration, OffsetDateTime};
 use tolight_coordinator_store::{ApplicationInput, ApplyLimits, SendInput, SendLimits, Store};
 use tolight_core::{models::AgentContext, signing::public_key_from_seed};
 
@@ -391,7 +391,7 @@ async fn approve(store: &Store, context: &AgentContext) {
     // separately exercised by reference-client/conformance_e2e.rs.
     store
         .conformance_transaction(context, |data| {
-            data.agent.conformance_passed_at = Some(Utc::now());
+            data.agent.conformance_passed_at = Some(OffsetDateTime::now_utc());
             data.agent.conformance_suite_version =
                 Some(tolight_core::CONFORMANCE_SUITE_VERSION.into());
         })
@@ -457,18 +457,18 @@ async fn real_archived_wal_pitr_requires_fresh_approval_and_preserves_current_co
     let backup = primary.persistent_backup();
     let marker = json(backup.join("backup.json"));
     let created =
-        chrono::DateTime::parse_from_rfc3339(marker["completed_at"].as_str().unwrap()).unwrap();
-    let stamp = created.timestamp() as f64 + created.timestamp_subsec_nanos() as f64 / 1e9;
+        tolight_core::datetime::parse_rfc3339(marker["completed_at"].as_str().unwrap()).unwrap();
+    let stamp = created.unix_timestamp() as f64 + created.nanosecond() as f64 / 1e9;
     assert!(
         tolight_cli::ops::storage::backup::successful_backup_times(
             backup.parent().unwrap(),
-            Utc::now().timestamp() as f64 + 1.0
+            OffsetDateTime::now_utc().unix_timestamp() as f64 + 1.0
         )
         .contains(&stamp)
     );
     let before = primary.wal_names();
     message(&store, &alice, "at-target", "必须保留的恢复点前消息").await;
-    let target = Utc::now().to_rfc3339_opts(SecondsFormat::Micros, true);
+    let target = tolight_core::datetime::utc_micros(OffsetDateTime::now_utc());
     tokio::time::sleep(Wait::from_millis(25)).await;
     let lost = message(
         &store,
@@ -479,7 +479,7 @@ async fn real_archived_wal_pitr_requires_fresh_approval_and_preserves_current_co
     .await;
     let new_key = public_key_from_seed(&[74; 32]);
     store.set_key("alice", &new_key).await.unwrap();
-    let until = Utc::now() + Duration::hours(1);
+    let until = OffsetDateTime::now_utc() + Duration::hours(1);
     store.mute("alice", Some(until), "spam").await.unwrap();
     let until = store.review("alice").await.unwrap().muted_until.unwrap();
     store.kick("bobby", "spam").await.unwrap();
@@ -537,7 +537,7 @@ async fn real_archived_wal_pitr_requires_fresh_approval_and_preserves_current_co
     assert_eq!(restored_alice["public_key"], new_key);
     assert_eq!(
         restored_alice["muted_until"],
-        serde_json::to_value(until).unwrap()
+        Value::String(tolight_core::datetime::json_timestamp(until))
     );
     assert_eq!(
         agents.iter().find(|a| a["agent_id"] == "bobby").unwrap()["state"],
@@ -575,7 +575,7 @@ async fn corrupt_missing_wal_and_unattainable_target_never_publish_or_start_the_
     message(&store, &alice, "before", "基础备份之前").await;
     let backup = primary.backup();
     let previous = primary.wal_names();
-    let target = Utc::now().to_rfc3339_opts(SecondsFormat::Micros, true);
+    let target = tolight_core::datetime::utc_micros(OffsetDateTime::now_utc());
     tokio::time::sleep(Wait::from_millis(25)).await;
     message(&store, &alice, "after", "确保目标之后有提交").await;
     primary.wait_for_more_wal(&previous);
@@ -616,7 +616,8 @@ async fn corrupt_missing_wal_and_unattainable_target_never_publish_or_start_the_
         ],
     );
     assert!(output.status.success());
-    let future = (Utc::now() + Duration::seconds(1)).to_rfc3339_opts(SecondsFormat::Micros, true);
+    let future =
+        tolight_core::datetime::utc_micros(OffsetDateTime::now_utc() + Duration::seconds(1));
     tokio::time::sleep(Wait::from_millis(1250)).await;
     let output = primary.drill(&backup, &future, &[]);
     assert_eq!(output.status.code(), Some(1));
@@ -692,7 +693,7 @@ async fn lagging_published_tree_before_target_does_not_hide_unpublished_message_
         "恢复点前尚未发布的消息仍须恢复",
     )
     .await;
-    let target = Utc::now().to_rfc3339_opts(SecondsFormat::Micros, true);
+    let target = tolight_core::datetime::utc_micros(OffsetDateTime::now_utc());
     tokio::time::sleep(Wait::from_millis(25)).await;
     let lost_a = message(
         &store,
@@ -771,7 +772,7 @@ async fn wrong_cluster_and_unreadable_source_cannot_bypass_current_control_verif
     let second_store = Store::connect(&second.url, 3).await.unwrap();
     second_store.migrate().await.unwrap();
     publish(&second);
-    let target = Utc::now().to_rfc3339_opts(SecondsFormat::Micros, true);
+    let target = tolight_core::datetime::utc_micros(OffsetDateTime::now_utc());
     let output = second.script(
         "pitr-drill.sh",
         &[

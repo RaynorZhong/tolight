@@ -6,7 +6,6 @@ use axum::{
     extract::ConnectInfo,
     http::{HeaderMap, Request, StatusCode, header},
 };
-use chrono::{DateTime, Duration, Utc};
 use serde_json::{Value, json};
 use sqlx::PgPool;
 use std::{
@@ -15,6 +14,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 use support::fake_agent::{FakeAgent, TestApp};
+use time::{Duration, OffsetDateTime};
 use tolight_coordinator::{admin, http, operator};
 use tolight_coordinator_store::ReviewedControl;
 use tower::ServiceExt;
@@ -25,7 +25,7 @@ const ORIGIN: &str = "http://127.0.0.1:19092";
 struct Fixture {
     app: TestApp,
     router: Router,
-    clock: Arc<Mutex<DateTime<Utc>>>,
+    clock: Arc<Mutex<OffsetDateTime>>,
     _assets: tempfile::TempDir,
 }
 
@@ -38,7 +38,10 @@ impl Fixture {
         )
         .unwrap();
         // PostgreSQL stores microseconds; make exact threshold fixtures equally precise.
-        let now = DateTime::from_timestamp_micros(Utc::now().timestamp_micros()).unwrap();
+        let now = OffsetDateTime::now_utc();
+        let now = now
+            .replace_nanosecond(now.nanosecond() / 1_000 * 1_000)
+            .unwrap();
         let clock = Arc::new(Mutex::new(now));
         let source = clock.clone();
         let app = TestApp::configured_clock(
@@ -239,6 +242,11 @@ async fn active_roster_reports_precise_server_time_activity_without_pending_or_l
             .await
             .unwrap();
         let current = roster(&fixture.router).await;
+        assert_eq!(
+            current["server_time"],
+            tolight_core::datetime::json_timestamp(now),
+            "private JSON timestamps retain RFC3339 strings and exact clock precision"
+        );
         let agent = view(&current, id);
         assert_eq!(agent["presence"], expected, "{id}");
         if expected == "unknown" {
@@ -312,6 +320,10 @@ async fn active_roster_reports_precise_server_time_activity_without_pending_or_l
     }
     let pending = send(&fixture.router, local("GET", "/admin/api/pending")).await;
     assert_eq!(pending.status, 200);
+    assert_eq!(
+        pending.body["server_time"],
+        tolight_core::datetime::json_timestamp(now)
+    );
     assert_eq!(pending.body["csrf_token"], current["csrf_token"]);
 }
 
@@ -320,7 +332,7 @@ async fn finite_and_indefinite_controls_change_real_sending_rules_and_write_audi
     let fixture = Fixture::new(pool).await;
     let agent = fixture.active("control-muted", 138).await;
     let current = roster(&fixture.router).await;
-    let before = Utc::now();
+    let before = OffsetDateTime::now_utc();
     let muted = send(
         &fixture.router,
         post(
@@ -334,11 +346,10 @@ async fn finite_and_indefinite_controls_change_real_sending_rules_and_write_audi
     assert_eq!(muted.body["state"], "ACTIVE");
     assert_eq!(muted.body["muted_indefinitely"], false);
     assert_eq!(muted.body["mute_reason"], "spam");
-    let until = DateTime::parse_from_rfc3339(muted.body["muted_until"].as_str().unwrap())
-        .unwrap()
-        .with_timezone(&Utc);
+    let until =
+        tolight_core::datetime::parse_rfc3339(muted.body["muted_until"].as_str().unwrap()).unwrap();
     assert!(until >= before + Duration::seconds(60));
-    assert!(until <= Utc::now() + Duration::seconds(60));
+    assert!(until <= OffsetDateTime::now_utc() + Duration::seconds(60));
     let blocked = agent.send(&fixture.app, "一条受限的公开消息").await;
     assert_eq!(blocked.status, 403);
     assert_eq!(blocked.body["error"]["code"], "agent_muted");
@@ -423,9 +434,7 @@ async fn roster_mute_expiry_uses_effective_state_and_preserves_raw_confirmation_
     let current = roster(&fixture.router).await;
     let raw_until = view(&current, &agent.id)["muted_until"].clone();
     assert_eq!(view(&current, &agent.id)["muted"], true);
-    let exact_until = DateTime::parse_from_rfc3339(raw_until.as_str().unwrap())
-        .unwrap()
-        .with_timezone(&Utc);
+    let exact_until = tolight_core::datetime::parse_rfc3339(raw_until.as_str().unwrap()).unwrap();
     *fixture.clock.lock().unwrap() = exact_until;
     let expired = roster(&fixture.router).await;
     let view = view(&expired, &agent.id);
@@ -808,7 +817,7 @@ async fn reviewed_control_wait_rechecks_raw_state_and_starts_duration_after_the_
     });
     await_row_wait(fixture.app.room.store().pool()).await;
     tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
-    let before_unlock: DateTime<Utc> = sqlx::query_scalar("SELECT clock_timestamp()")
+    let before_unlock: OffsetDateTime = sqlx::query_scalar("SELECT clock_timestamp()")
         .fetch_one(&mut *blocker)
         .await
         .unwrap();

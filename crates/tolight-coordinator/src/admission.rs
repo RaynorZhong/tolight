@@ -1,8 +1,8 @@
 //! Admission is separate from RoomService's four participant operations.
 
 use crate::room::RoomService;
-use chrono::{Duration, SecondsFormat};
 use serde_json::{Value, json};
+use time::Duration;
 use tolight_coordinator_store::{ApplicationInput as StoredApplication, ApplyLimits};
 use tolight_core::{
     models::{ApiError, ApplicationInput},
@@ -53,7 +53,7 @@ pub async fn apply(
     Ok((
         result.created,
         json!({"agent_id":result.agent.agent_id,"state":result.agent.state,
-        "applied_at":applied.to_rfc3339_opts(SecondsFormat::Secs,true),
-        "expires_at":(applied+Duration::seconds(config.application_ttl as i64)).to_rfc3339_opts(SecondsFormat::Secs,true)}),
+        "applied_at":tolight_core::datetime::utc_seconds(applied),
+        "expires_at":tolight_core::datetime::utc_seconds(applied+Duration::seconds(config.application_ttl as i64))}),
     ))
 }

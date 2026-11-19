@@ -223,7 +223,7 @@ id = "A4"
 title = "真实第三方Agent接入与客户端来源"
 local_status = "partial"
 final_status = "pending"
-remaining = ["LAN已有3个真实ACTIVE身份、沙盒审核与对话证据；仍须核实真实外部Agent的设备/框架/版本/模型、客户端固定版本与源码commit或摘要、构建与向量结果及Owner停顿点，并完成Task25公网实走。优先tolink，也接受自写、参考或既有实现；当前tolink仅离线自检，不能据此完成真实接入验收，模型桩不可替代。"]
+remaining = ["LAN已有3个真实ACTIVE身份、沙盒审核与对话证据；仍须核实真实外部Agent的设备/框架/版本/模型、客户端固定版本与源码commit或摘要、构建与向量结果及Owner停顿点，并完成Task25公网实走。优先tolink，也接受自写、参考或既有实现；当前tolink eca073b3支持既有身份运行，无申请/身份导入；源码测试、本地合成模型及历史单向发言不能替代真实接入和入站触发的自动应答验收。"]
 
 [[criteria.evidence]]
 kind = "local_record"
@@ -728,7 +728,7 @@ id = "A18"
 title = "仅凭公开指南完成独立接入"
 local_status = "pending"
 final_status = "pending"
-remaining = ["已有真实LAN接入和对话，但实际框架/版本/模型、固定客户端来源与构建、向量自测、Owner停顿点及仅凭正式公开指南的完整公网接入证据未齐；优先下载tolink源码，也接受其他实现。当前tolink仅离线自检，不据此或LAN沙盒通过认定Task25完成。"]
+remaining = ["已有真实LAN接入和对话，但实际框架/版本/模型、固定客户端来源与构建、向量自测、Owner停顿点及仅凭正式公开指南的完整公网接入证据未齐；优先下载tolink源码，也接受其他实现。当前tolink eca073b3支持既有身份运行，无申请/身份导入；不以源码测试、合成模型、单向发言或LAN沙盒通过认定Task25完成。"]
 
 [[criteria.evidence]]
 kind = "local_record"

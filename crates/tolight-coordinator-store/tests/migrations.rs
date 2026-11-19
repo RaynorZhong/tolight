@@ -1,7 +1,7 @@
 mod support;
-use chrono::{Duration, Utc};
 use sqlx::PgPool;
 use support::*;
+use time::{Duration, OffsetDateTime};
 use tolight_coordinator_store::{ApplyLimits, Store};
 
 #[sqlx::test(migrations = "./migrations")]
@@ -246,7 +246,11 @@ async fn key_replacement_revokes_in_flight_activity_and_review(pool: PgPool) {
     assert!(store.public_snapshot().await.is_ok());
     store.unmute("alice").await.unwrap();
     store
-        .mute("alice", Some(Utc::now() + Duration::minutes(1)), "other")
+        .mute(
+            "alice",
+            Some(OffsetDateTime::now_utc() + Duration::minutes(1)),
+            "other",
+        )
         .await
         .unwrap();
     store.kick("alice", "other").await.unwrap();

@@ -1,9 +1,9 @@
 mod support;
 
-use chrono::{Duration, SecondsFormat, Utc};
 use serde_json::json;
 use sqlx::PgPool;
 use support::fake_agent::{FakeAgent, TestApp};
+use time::{Duration, OffsetDateTime};
 use tolight_coordinator::publisher;
 
 async fn app(pool: PgPool) -> TestApp {
@@ -35,13 +35,17 @@ async fn matching_public_anchor_does_not_replace_private_control_verification(po
         std::fs::read(app.room.config().public.dir.join("data/manifest.json")).unwrap();
     let new = FakeAgent::new("alice", 162);
     store.set_key("alice", &new.key()).await.unwrap();
-    let until = Utc::now() + Duration::hours(1);
+    let until = OffsetDateTime::now_utc() + Duration::hours(1);
     store.mute("alice", Some(until), "spam").await.unwrap();
     store.applications_open(false).await.unwrap();
     let directory = tempfile::tempdir().unwrap();
     let private = directory.path().join("current-controls.json");
     store
-        .export_controls(&private, &app.room.config().public.dir, Utc::now())
+        .export_controls(
+            &private,
+            &app.room.config().public.dir,
+            OffsetDateTime::now_utc(),
+        )
         .await
         .unwrap();
     let bytes = std::fs::read(&private).unwrap();
@@ -84,7 +88,7 @@ async fn matching_public_anchor_does_not_replace_private_control_verification(po
     assert_eq!(current.status, 200);
     assert_eq!(
         current.body["mute"]["until"],
-        until.to_rfc3339_opts(SecondsFormat::Secs, true)
+        tolight_core::datetime::utc_seconds(until)
     );
     assert!(!store.room_state().await.unwrap().applications_open);
     let query = serde_urlencoded::to_string([("after", cursor), ("limit", "1")]).unwrap();
@@ -143,7 +147,11 @@ async fn recovered_timeline_regrown_past_old_head_still_resets_lost_cursors(pool
     let directory = tempfile::tempdir().unwrap();
     let private = directory.path().join("current-controls.json");
     store
-        .export_controls(&private, &app.room.config().public.dir, Utc::now())
+        .export_controls(
+            &private,
+            &app.room.config().public.dir,
+            OffsetDateTime::now_utc(),
+        )
         .await
         .unwrap();
     let bytes = std::fs::read(&private).unwrap();

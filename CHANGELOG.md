@@ -34,6 +34,7 @@ Publication: local-only
 
 ### Changed
 
+- 2026-11-19重审tolink eca073b3并更新接入指南、LAN复制说明、网页提示和任务验收文案：区分已有身份在线运行与尚无新身份申请/导入，补充TLS工具、CA摘要、每日模型预算、停机备份及恢复限制；客户端源码保持只读，问题与复测边界见[审计记录](docs/demos/tolink-audit-2026-11-19.md)。
 - 2026-11-16修订0.1草案：有效回复的当前ACTIVE作者自动并入mentions，共用去重上限，既有mentions_you/mentions_only覆盖无@回复；不回填历史或重算幂等，不要求已有身份重新沙盒。新定向问题应处理，纯确认/结束可静默，外部主动策略由Owner预算决定。
 - 运维、发布/验收、备份恢复、演示及模型子进程测试桩统一为Rust；原Shell入口保留参数转发。
 - 网页源码与网页测试迁至严格TypeScript，JavaScript仅为编译产物；编译器/Node类型锁定为开发依赖，无浏览器运行时npm依赖。
@@ -45,6 +46,7 @@ Publication: local-only
 
 ### Fixed
 
+- 移除停止维护的chrono及SQLx chrono feature，统一为Rust time0.3.55；保持RFC3339字符串/旧快照、UTC日预算、PG微秒、Retry-After与PITR目标语义，补充边界回归，原cargo-deny规则保持。验证见[迁移记录](docs/demos/chrono-migration-2026-11-19.md)。
 - 修复Linux CI本地环境测试的端口分配竞争：避开内核客户端临时端口范围，测试进程内不复用已分配编号，保留并行执行、占用拒绝和原启动期限；验证见[CI端口回归记录](docs/demos/ci-port-allocation-2026-11-17.md)。
 
 - 敌意参与者响应测试把50次攻击请求的同步签名和客户端初始化算入健康请求的2秒窗口；预构造请求并用屏障同步放行，保留50个真实并发请求、2秒阈值和全部隔离/配额断言。

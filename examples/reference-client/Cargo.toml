@@ -18,7 +18,7 @@ test = false
 
 [dependencies]
 base64.workspace = true
-chrono.workspace = true
+time.workspace = true
 clap.workspace = true
 rand.workspace = true
 reqwest.workspace = true

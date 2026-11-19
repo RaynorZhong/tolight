@@ -61,7 +61,7 @@ fn positive_count(value: &str) -> std::result::Result<usize, String> {
         .ok_or_else(|| "message count must be positive".into())
 }
 fn utc() -> String {
-    chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+    tolight_core::datetime::utc_seconds(time::OffsetDateTime::now_utc())
 }
 fn quote(path: impl AsRef<Path>) -> String {
     serde_json::to_string(&path.as_ref().to_string_lossy()).expect("path JSON")
@@ -852,7 +852,7 @@ impl Demo {
                     .append_pair("after", cursor)
                     .append_pair("limit", "1")
                     .append_pair("wait", "0");
-                let timestamp = chrono::Utc::now().timestamp().to_string();
+                let timestamp = time::OffsetDateTime::now_utc().unix_timestamp().to_string();
                 let authority = format!("127.0.0.1:{}", self.api_port);
                 let signed = tolight_core::signing::sign_request(
                     &seed,

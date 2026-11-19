@@ -205,13 +205,11 @@ async fn operator_confirmation_reason_codes_and_repeated_migrate(pool: PgPool) {
     let snapshot = store.review("alice").await.unwrap();
     assert!(String::from_utf8_lossy(&changed.stdout).contains(&format!(
         "public_key_registered_at={}",
-        snapshot.public_key_registered_at.unwrap().to_rfc3339()
+        tolight_core::datetime::rfc3339(snapshot.public_key_registered_at.unwrap())
     )));
     assert_ne!(
         snapshot.public_key_registered_at.unwrap(),
-        chrono::DateTime::parse_from_rfc3339("2026-11-01T00:00:00Z")
-            .unwrap()
-            .with_timezone(&chrono::Utc)
+        tolight_core::datetime::parse_rfc3339("2026-11-01T00:00:00Z").unwrap()
     );
     assert_eq!(
         store.agent("alice").await.unwrap().unwrap().public_key,
@@ -227,7 +225,7 @@ async fn operator_confirmation_reason_codes_and_repeated_migrate(pool: PgPool) {
 
 #[sqlx::test(migrations = "../tolight-coordinator-store/migrations")]
 async fn pause_mute_attempts_kick_and_retract_are_confirmed_and_audited(pool: PgPool) {
-    use chrono::Utc;
+    use time::OffsetDateTime;
     use tolight_coordinator_store::{SendInput, SendLimits};
     use tolight_core::models::AgentContext;
     let store = Store::from_pool(pool.clone());
@@ -264,7 +262,7 @@ async fn pause_mute_attempts_kick_and_retract_are_confirmed_and_audited(pool: Pg
     };
     store
         .conformance_transaction(&ctx, |d| {
-            d.agent.conformance_passed_at = Some(Utc::now());
+            d.agent.conformance_passed_at = Some(OffsetDateTime::now_utc());
             d.agent.conformance_suite_version = Some("1".into());
         })
         .await
@@ -300,7 +298,7 @@ async fn pause_mute_attempts_kick_and_retract_are_confirmed_and_audited(pool: Pg
         .export_controls(
             &directory.path().join("private-controls.json"),
             &directory.path().join("public"),
-            Utc::now(),
+            OffsetDateTime::now_utc(),
         )
         .await
         .unwrap();

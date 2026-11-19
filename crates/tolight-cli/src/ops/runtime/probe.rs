@@ -82,13 +82,15 @@ pub async fn run(args: Args) -> Result {
                         "participant Date header is missing".into(),
                     );
                 }
-                Some(value) => match value
-                    .to_str()
+                Some(value) => match value.to_str().ok().and_then(|value| {
+                    time::OffsetDateTime::parse(
+                        value,
+                        &time::format_description::well_known::Rfc2822,
+                    )
                     .ok()
-                    .and_then(|value| chrono::DateTime::parse_from_rfc2822(value).ok())
-                {
+                }) {
                     Some(date) => {
-                        let offset = date.timestamp() as f64 - now;
+                        let offset = date.unix_timestamp() as f64 - now;
                         if offset.abs() > args.max_clock_skew as f64 {
                             problems.insert(
                                 "clock_skew".into(),

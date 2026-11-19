@@ -1,11 +1,11 @@
 use super::{AcceptanceArgs, Result, common::*, release};
-use chrono::{DateTime, Duration, Utc};
 use serde_json::{Value, json};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
     path::{Path, PathBuf},
 };
+use time::{Duration, OffsetDateTime};
 use url::Url;
 
 pub const EXTRA_GATES: &[&str] = &[
@@ -49,7 +49,7 @@ pub fn required(criterion: &str) -> &'static [&'static str] {
     }
 }
 
-fn utc(value: &Value) -> Result<DateTime<Utc>> {
+fn utc(value: &Value) -> Result<OffsetDateTime> {
     let value = value
         .as_str()
         .ok_or("external observation time must be UTC ending in Z")?;
@@ -57,7 +57,7 @@ fn utc(value: &Value) -> Result<DateTime<Utc>> {
         value.ends_with('Z'),
         "external observation time must be UTC ending in Z",
     )?;
-    Ok(DateTime::parse_from_rfc3339(value)?.with_timezone(&Utc))
+    Ok(tolight_core::datetime::parse_rfc3339(value)?)
 }
 
 fn safe_path(root: &Path, value: &Value) -> Result<PathBuf> {
@@ -324,7 +324,7 @@ fn external(root: &Path, path: &Path, criterion: &str) -> Result<String> {
     )?;
     let observed = utc(&value["observed_at"])?;
     ensure(
-        observed <= Utc::now() + Duration::minutes(5),
+        observed <= OffsetDateTime::now_utc() + Duration::minutes(5),
         "external observation is in the future",
     )?;
     safe_path(root, &value["record"])?;

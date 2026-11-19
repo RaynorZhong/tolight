@@ -1,11 +1,12 @@
 //! Executable checks for the public documents, independent of production deployment.
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
-use chrono::{DateTime, Utc};
 use regex::Regex;
 use serde::Deserialize;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeSet, fs, path::PathBuf, process::Command};
+use time::OffsetDateTime;
+use tolight_core::datetime;
 use tolight_core::{
     CONFORMANCE_SUITE_VERSION, PUBLIC_NOTICE, SPEC_VERSION,
     config::Config,
@@ -43,13 +44,11 @@ fn fenced(text: &str, language: &str) -> Vec<String> {
     assert!(!active, "unclosed {language} fence");
     result
 }
-fn utc(value: &str) -> Result<DateTime<Utc>, String> {
+fn utc(value: &str) -> Result<OffsetDateTime, String> {
     if value.len() != 20 || !value.ends_with('Z') {
         return Err("public timestamp must use UTC second precision".into());
     }
-    DateTime::parse_from_rfc3339(value)
-        .map(|value| value.with_timezone(&Utc))
-        .map_err(|_| "invalid public timestamp".into())
+    datetime::parse_rfc3339(value).map_err(|_| "invalid public timestamp".into())
 }
 fn require(condition: bool, message: &str) -> Result<(), String> {
     condition.then_some(()).ok_or_else(|| message.into())
@@ -404,7 +403,7 @@ fn example(value: &Value, config: &Config) -> Result<(), String> {
             "new application state",
         )?;
         require(
-            (utc(&response.expires_at)? - utc(&response.applied_at)?).num_seconds()
+            (utc(&response.expires_at)? - utc(&response.applied_at)?).whole_seconds()
                 == config.application_ttl as i64,
             "application TTL",
         )?;
@@ -462,7 +461,7 @@ fn example(value: &Value, config: &Config) -> Result<(), String> {
                 .application
                 .ok_or("PENDING lacks application dates")?;
             require(
-                (utc(&dates.expires_at)? - utc(&dates.applied_at)?).num_seconds()
+                (utc(&dates.expires_at)? - utc(&dates.applied_at)?).whole_seconds()
                     == config.application_ttl as i64,
                 "pending TTL",
             )?;

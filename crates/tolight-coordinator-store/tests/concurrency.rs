@@ -1,7 +1,7 @@
 mod support;
-use chrono::{Duration, Utc};
 use sqlx::{PgPool, Row};
 use support::*;
+use time::{Duration, OffsetDateTime};
 use tolight_coordinator_store::{ApplyLimits, SendLimits, Store};
 
 #[sqlx::test(migrations = "./migrations")]
@@ -286,7 +286,11 @@ async fn committed_mute_pause_and_key_changes_block_later_messages(pool: PgPool)
     assert_eq!(replay.event_id, first.event_id);
     store.unmute("alice").await.unwrap();
     store
-        .mute("alice", Some(Utc::now() - Duration::seconds(1)), "other")
+        .mute(
+            "alice",
+            Some(OffsetDateTime::now_utc() - Duration::seconds(1)),
+            "other",
+        )
         .await
         .unwrap();
     store
@@ -294,7 +298,11 @@ async fn committed_mute_pause_and_key_changes_block_later_messages(pool: PgPool)
         .await
         .unwrap();
     store
-        .mute("alice", Some(Utc::now() + Duration::minutes(5)), "other")
+        .mute(
+            "alice",
+            Some(OffsetDateTime::now_utc() + Duration::minutes(5)),
+            "other",
+        )
         .await
         .unwrap();
     let error = store
@@ -509,7 +517,7 @@ async fn rate_recovery_uses_both_windows_and_configured_threshold_not_oldest_att
     };
     let usage = store.usage("alice", &lowered).await.unwrap();
     assert_eq!(usage.minute, 4);
-    assert!((usage.next_allowed_at.unwrap() - Utc::now()).num_seconds() >= 3);
+    assert!((usage.next_allowed_at.unwrap() - OffsetDateTime::now_utc()).whole_seconds() >= 3);
     let error = store
         .send(message(&alice, "over", "新尝试", &[]), lowered)
         .await

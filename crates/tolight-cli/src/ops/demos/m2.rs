@@ -601,8 +601,9 @@ async fn execute(demo: &mut Demo, args: &M2) -> Result {
         demo.info("alice").await?["state"] == "ACTIVE",
         "new key is not active",
     )?;
-    let until = (chrono::Utc::now() + chrono::Duration::hours(1))
-        .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let until = tolight_core::datetime::utc_seconds(
+        time::OffsetDateTime::now_utc() + time::Duration::hours(1),
+    );
     demo.ctl(
         osargs([
             "operator", "agent", "mute", "alice", "--until", &until, "--reason", "spam",

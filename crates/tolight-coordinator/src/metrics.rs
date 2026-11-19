@@ -7,8 +7,8 @@ use axum::{
     response::{IntoResponse, Response},
     routing::get,
 };
-use chrono::{DateTime, Utc};
 use std::{collections::BTreeMap, sync::Mutex};
+use time::OffsetDateTime;
 use tolight_core::config::Config;
 
 #[derive(Default)]
@@ -17,7 +17,7 @@ struct Counters {
     limits: BTreeMap<String, u64>,
     auth_failures: u64,
     clock_skew: u64,
-    lag_since: Option<DateTime<Utc>>,
+    lag_since: Option<OffsetDateTime>,
 }
 pub struct ProcessMetrics {
     counters: Mutex<Counters>,
@@ -31,7 +31,8 @@ impl ProcessMetrics {
             counters: Mutex::default(),
             logger: Logger::new(&config.observability),
             address: Mutex::new(None),
-            started_at_seconds: Utc::now().timestamp_micros() as f64 / 1_000_000.0,
+            started_at_seconds: (OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000) as f64
+                / 1_000_000.0,
         }
     }
     pub(crate) fn set_address(&self, address: std::net::SocketAddr) {
@@ -157,7 +158,7 @@ pub async fn render(room: &RoomService) -> Result<String, tolight_core::models::
         .unwrap_or_else(|e| e.into_inner());
     let lag_seconds = if lag > 0 {
         let start = counters.lag_since.get_or_insert(now);
-        (now - *start).num_milliseconds().max(0) as f64 / 1000.0
+        (now - *start).whole_milliseconds().max(0) as f64 / 1000.0
     } else {
         counters.lag_since = None;
         0.0

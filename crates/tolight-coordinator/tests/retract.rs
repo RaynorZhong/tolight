@@ -1,6 +1,6 @@
-use chrono::Utc;
 use serde_json::Value;
 use sqlx::PgPool;
+use time::OffsetDateTime;
 use tolight_coordinator::publisher;
 use tolight_coordinator_store::{ApplicationInput, ApplyLimits, SendInput, SendLimits, Store};
 use tolight_core::{config::Config, models::AgentContext, signing::public_key_from_seed};
@@ -28,7 +28,7 @@ async fn active(store: &Store, id: &str, seed: u8) -> AgentContext {
     };
     store
         .conformance_transaction(&context, |data| {
-            data.agent.conformance_passed_at = Some(Utc::now());
+            data.agent.conformance_passed_at = Some(OffsetDateTime::now_utc());
             data.agent.conformance_suite_version = Some("1".into());
         })
         .await

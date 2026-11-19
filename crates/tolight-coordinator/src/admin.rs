@@ -9,10 +9,10 @@ use axum::{
     response::{IntoResponse, Redirect, Response},
     routing::{get, post},
 };
-use chrono::{DateTime, Duration, Utc};
 use serde::Deserialize;
 use serde_json::json;
 use std::{net::SocketAddr, sync::Arc};
+use time::{Duration, OffsetDateTime};
 use tolight_coordinator_store::{ReviewedControl, conformance::ConformanceData};
 use tolight_core::{CONFORMANCE_SUITE_VERSION, models::ApiError};
 use uuid::Uuid;
@@ -195,9 +195,9 @@ async fn pending(State(admin): State<Admin>) -> Response {
             "owner_contact":agent.owner_contact,
             "framework_label":agent.framework_label,
             "public_key":agent.public_key,
-            "registered_at":agent.registered_at,
-            "expires_at":expires_at,
-            "last_seen_at":agent.last_seen_at,
+            "registered_at":tolight_core::datetime::json_timestamp(agent.registered_at),
+            "expires_at":tolight_core::datetime::json_timestamp(expires_at),
+            "last_seen_at":agent.last_seen_at.map(tolight_core::datetime::json_timestamp),
             "conformance":conformance,
             "can_approve":agent.state == "PENDING" && expires_at > now
                 && agent.conformance_passed_at.is_some()
@@ -207,24 +207,24 @@ async fn pending(State(admin): State<Admin>) -> Response {
     Json(json!({
         "schema":"tolight-admin-pending/1",
         "csrf_token":admin.csrf.as_ref(),
-        "server_time":now,
+        "server_time":tolight_core::datetime::json_timestamp(now),
         "agents":views,
     }))
     .into_response()
 }
 
-fn presence(last_seen: Option<DateTime<Utc>>, now: DateTime<Utc>) -> (&'static str, Option<i64>) {
+fn presence(last_seen: Option<OffsetDateTime>, now: OffsetDateTime) -> (&'static str, Option<i64>) {
     let Some(last_seen) = last_seen.filter(|seen| *seen <= now) else {
         return ("unknown", None);
     };
-    let age = now.signed_duration_since(last_seen);
+    let age = now - last_seen;
     (
         if age <= Duration::seconds(ONLINE_THRESHOLD_SECONDS) {
             "online"
         } else {
             "offline"
         },
-        Some(age.num_seconds()),
+        Some(age.whole_seconds()),
     )
 }
 
@@ -248,10 +248,10 @@ async fn agents(State(admin): State<Admin>) -> Response {
                 "owner_contact":agent.owner_contact,
                 "framework_label":agent.framework_label,
                 "public_key":agent.public_key,
-                "registered_at":agent.registered_at,
-                "joined_at":agent.joined_at,
-                "last_seen_at":agent.last_seen_at,
-                "muted_until":agent.muted_until,
+                "registered_at":tolight_core::datetime::json_timestamp(agent.registered_at),
+                "joined_at":agent.joined_at.map(tolight_core::datetime::json_timestamp),
+                "last_seen_at":agent.last_seen_at.map(tolight_core::datetime::json_timestamp),
+                "muted_until":agent.muted_until.map(tolight_core::datetime::json_timestamp),
                 "muted_indefinitely":agent.muted_indefinitely,
                 "mute_reason":agent.mute_reason,
                 "muted":agent.muted_indefinitely || agent.muted_until.is_some_and(|until| until > now),
@@ -263,7 +263,7 @@ async fn agents(State(admin): State<Admin>) -> Response {
     Json(json!({
         "schema":"tolight-admin-agents/1",
         "csrf_token":admin.csrf.as_ref(),
-        "server_time":now,
+        "server_time":tolight_core::datetime::json_timestamp(now),
         "online_threshold_seconds":ONLINE_THRESHOLD_SECONDS,
         "agents":views,
     }))
@@ -277,7 +277,8 @@ struct Control {
     application_id: Uuid,
     application_revision: i64,
     public_key: String,
-    muted_until: Option<DateTime<Utc>>,
+    #[serde(default, with = "tolight_core::datetime::serde::option")]
+    muted_until: Option<OffsetDateTime>,
     muted_indefinitely: bool,
     mute_reason: Option<String>,
     action: String,
@@ -342,7 +343,7 @@ async fn control(
             room.notify_change();
             Json(json!({
                 "agent_id":agent.agent_id,"state":agent.state,
-                "muted_until":agent.muted_until,"muted_indefinitely":agent.muted_indefinitely,
+                "muted_until":agent.muted_until.map(tolight_core::datetime::json_timestamp),"muted_indefinitely":agent.muted_indefinitely,
                 "mute_reason":agent.mute_reason,
             }))
             .into_response()

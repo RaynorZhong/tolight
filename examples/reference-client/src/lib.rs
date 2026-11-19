@@ -1,5 +1,4 @@
 //! Project-owned script participant. Not an SDK, installer, or third-party admission substitute.
-use chrono::{DateTime, SecondsFormat, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -11,7 +10,9 @@ use std::{
     sync::Arc,
     time::Duration,
 };
+use time::OffsetDateTime;
 use tokio::sync::watch;
+use tolight_core::datetime;
 use tolight_core::{
     PUBLIC_NOTICE,
     config::authority_is_loopback,
@@ -181,8 +182,8 @@ fn authority(url: &Url) -> String {
 }
 
 const NANOS_PER_SECOND: i128 = 1_000_000_000;
-fn timestamp_nanos(value: DateTime<Utc>) -> i128 {
-    i128::from(value.timestamp()) * NANOS_PER_SECOND + i128::from(value.timestamp_subsec_nanos())
+fn timestamp_nanos(value: OffsetDateTime) -> i128 {
+    i128::from(value.unix_timestamp()) * NANOS_PER_SECOND + i128::from(value.nanosecond())
 }
 fn recorded_nanos(seconds: Option<i64>, precision: Option<u32>) -> Option<i128> {
     // A v1 state written before subsecond tracking may have been recorded at any
@@ -245,13 +246,13 @@ fn rejected_error(info: &Value) -> ClientError {
 }
 
 pub trait Clock: Send + Sync {
-    fn now(&self) -> DateTime<Utc>;
+    fn now(&self) -> OffsetDateTime;
     fn sleep(&self, duration: Duration) -> Pin<Box<dyn Future<Output = ()> + Send + '_>>;
 }
 pub struct SystemClock;
 impl Clock for SystemClock {
-    fn now(&self) -> DateTime<Utc> {
-        Utc::now()
+    fn now(&self) -> OffsetDateTime {
+        OffsetDateTime::now_utc()
     }
     fn sleep(&self, duration: Duration) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
         Box::pin(tokio::time::sleep(duration))
@@ -508,7 +509,7 @@ impl ReferenceClient {
         if body.len() > 32768 {
             return Err(ClientError::local("too_large", "请求体超过32KiB"));
         }
-        let timestamp = self.clock.now().timestamp().to_string();
+        let timestamp = self.clock.now().unix_timestamp().to_string();
         let signed = sign_request(
             &self.seed,
             method,
@@ -590,17 +591,13 @@ impl ReferenceClient {
             };
             let server_time = error
                 .and_then(|value| value["server_time"].as_str())
-                .filter(|value| DateTime::parse_from_rfc3339(value).is_ok())
+                .filter(|value| datetime::parse_rfc3339(value).is_ok())
                 .map(str::to_owned);
             let detail = if code == "clock_skew" {
                 if let Some(offset) = server_time
                     .as_deref()
-                    .and_then(|time| DateTime::parse_from_rfc3339(time).ok())
-                    .map(|time| {
-                        time.with_timezone(&Utc)
-                            .signed_duration_since(self.clock.now())
-                            .num_seconds()
-                    })
+                    .and_then(|time| datetime::parse_rfc3339(time).ok())
+                    .map(|time| (time - self.clock.now()).whole_seconds())
                 {
                     format!("{detail}；服务端相对本机偏移 {offset} 秒")
                 } else {
@@ -650,7 +647,12 @@ impl ReferenceClient {
         self.state.save(&self.config.state_path)
     }
     fn roll_budget(&mut self) {
-        let day = self.clock.now().format("%Y-%m-%d").to_string();
+        let day = self
+            .clock
+            .now()
+            .to_offset(time::UtcOffset::UTC)
+            .date()
+            .to_string();
         if self.state.budget_day != day {
             self.state.budget_day = day;
             self.state.calls = 0;
@@ -681,7 +683,7 @@ impl ReferenceClient {
     }
     async fn cooldown(&self, shutdown: Option<&watch::Receiver<bool>>) -> bool {
         if let Some(until) = self.state.cooldown_until {
-            let wait = until - self.clock.now().timestamp();
+            let wait = until - self.clock.now().unix_timestamp();
             if wait > 0 {
                 return self
                     .wait_retry(Duration::from_secs(wait as u64), shutdown)
@@ -730,9 +732,9 @@ impl ReferenceClient {
         // State stores whole seconds. Round the deadline up so a restart never
         // turns Retry-After into an early retry by dropping fractional seconds.
         self.state.cooldown_until = Some(
-            now.timestamp()
+            now.unix_timestamp()
                 .saturating_add(i64::try_from(seconds).unwrap_or(i64::MAX))
-                .saturating_add(i64::from(now.timestamp_subsec_nanos() != 0)),
+                .saturating_add(i64::from(now.nanosecond() != 0)),
         );
     }
     async fn recover_error(
@@ -780,7 +782,7 @@ impl ReferenceClient {
             self.state.processed.extend(pending.trigger_ids);
         }
     }
-    fn refresh_pending_reply_age(&mut self, now: DateTime<Utc>) -> Result<bool, ClientError> {
+    fn refresh_pending_reply_age(&mut self, now: OffsetDateTime) -> Result<bool, ClientError> {
         let max_age = self.config.max_trigger_age_seconds;
         let Some(pending) = self
             .state
@@ -1019,8 +1021,8 @@ impl ReferenceClient {
             self.state.calls += 1;
             self.state.script_index += 1;
             let called_at = self.clock.now();
-            self.state.last_call_at = Some(called_at.timestamp());
-            self.state.last_call_subsec_nanos = Some(called_at.timestamp_subsec_nanos());
+            self.state.last_call_at = Some(called_at.unix_timestamp());
+            self.state.last_call_subsec_nanos = Some(called_at.nanosecond());
             self.save()?;
             let generated = self.generator.generate(&context, index).await;
             match generated {
@@ -1062,8 +1064,8 @@ impl ReferenceClient {
                         );
                     }
                     let sent_at = self.clock.now();
-                    self.state.last_sent_at = Some(sent_at.timestamp());
-                    self.state.last_sent_subsec_nanos = Some(sent_at.timestamp_subsec_nanos());
+                    self.state.last_sent_at = Some(sent_at.unix_timestamp());
+                    self.state.last_sent_subsec_nanos = Some(sent_at.nanosecond());
                     self.mark_pending_done();
                     self.save()?;
                     return Ok(true);
@@ -1157,7 +1159,7 @@ impl ReferenceClient {
         if self
             .state
             .cooldown_until
-            .is_some_and(|until| until > self.clock.now().timestamp())
+            .is_some_and(|until| until > self.clock.now().unix_timestamp())
         {
             return Ok(false);
         }
@@ -1185,7 +1187,7 @@ impl ReferenceClient {
             || self
                 .state
                 .cooldown_until
-                .is_some_and(|until| self.clock.now().timestamp() < until)
+                .is_some_and(|until| self.clock.now().unix_timestamp() < until)
         {
             self.save()?;
             return Ok(false);
@@ -1202,8 +1204,8 @@ impl ReferenceClient {
         let mut report = RunReport::default();
         let mut retry = 0;
         if self.state.first_started_at.is_none() {
-            self.state.first_started_at = Some(start.timestamp());
-            self.state.first_started_subsec_nanos = Some(start.timestamp_subsec_nanos());
+            self.state.first_started_at = Some(start.unix_timestamp());
+            self.state.first_started_subsec_nanos = Some(start.nanosecond());
             self.save()?;
         }
         loop {
@@ -1358,9 +1360,8 @@ impl ReferenceClient {
                 {
                     // Persist the interval claim before generation, including silent/failure results.
                     let proactive_at = self.clock.now();
-                    self.state.last_proactive_at = Some(proactive_at.timestamp());
-                    self.state.last_proactive_subsec_nanos =
-                        Some(proactive_at.timestamp_subsec_nanos());
+                    self.state.last_proactive_at = Some(proactive_at.unix_timestamp());
+                    self.state.last_proactive_subsec_nanos = Some(proactive_at.nanosecond());
                     self.save()?;
                     let context = self
                         .request(
@@ -1397,7 +1398,7 @@ impl ReferenceClient {
             }
             if events.is_empty()
                 && (wait == 0
-                    || (self.clock.now() - before).num_milliseconds() < (wait as i64) * 1000)
+                    || (self.clock.now() - before).whole_milliseconds() < i128::from(wait) * 1000)
             {
                 self.clock.sleep(Duration::from_secs(1)).await;
             }
@@ -1426,20 +1427,19 @@ pub struct RunReport {
     pub sandbox_replies: u64,
 }
 
-fn trigger_age_exceeded(event: &Value, now: DateTime<Utc>, max_age: u64) -> bool {
+fn trigger_age_exceeded(event: &Value, now: OffsetDateTime, max_age: u64) -> bool {
     event["created_at"]
         .as_str()
-        .and_then(|value| DateTime::parse_from_rfc3339(value).ok())
+        .and_then(|value| datetime::parse_rfc3339(value).ok())
         .is_some_and(|time| {
-            timestamp_nanos(now) - timestamp_nanos(time.with_timezone(&Utc))
-                > i128::from(max_age) * NANOS_PER_SECOND
+            timestamp_nanos(now) - timestamp_nanos(time) > i128::from(max_age) * NANOS_PER_SECOND
         })
 }
 
 pub fn select_triggers(
     events: &[Value],
     processed: &BTreeSet<String>,
-    now: DateTime<Utc>,
+    now: OffsetDateTime,
     max_age: u64,
 ) -> Vec<Value> {
     let retracted: BTreeSet<_> = events
@@ -1463,9 +1463,9 @@ pub fn select_triggers(
         .filter(|event| {
             event["created_at"]
                 .as_str()
-                .and_then(|value| DateTime::parse_from_rfc3339(value).ok())
+                .and_then(|value| datetime::parse_rfc3339(value).ok())
                 .is_some_and(|time| {
-                    let age = timestamp_nanos(now) - timestamp_nanos(time.with_timezone(&Utc));
+                    let age = timestamp_nanos(now) - timestamp_nanos(time);
                     age >= 0 && age <= i128::from(max_age) * NANOS_PER_SECOND
                 })
         })
@@ -1474,7 +1474,7 @@ pub fn select_triggers(
     selected.sort_by_key(|value| value["seq"].as_u64());
     selected
 }
-pub fn last_message_is_recent_self(events: &[Value], id: &str, now: DateTime<Utc>) -> bool {
+pub fn last_message_is_recent_self(events: &[Value], id: &str, now: OffsetDateTime) -> bool {
     events
         .iter()
         .rev()
@@ -1483,12 +1483,8 @@ pub fn last_message_is_recent_self(events: &[Value], id: &str, now: DateTime<Utc
             event["agent"]["agent_id"] == id
                 && event["created_at"]
                     .as_str()
-                    .and_then(|value| DateTime::parse_from_rfc3339(value).ok())
-                    .is_some_and(|time| {
-                        now.signed_duration_since(time.with_timezone(&Utc))
-                            .num_seconds()
-                            < 86400
-                    })
+                    .and_then(|value| datetime::parse_rfc3339(value).ok())
+                    .is_some_and(|time| (now - time).whole_seconds() < 86400)
         })
 }
 fn observed_retractions<'a>(events: impl Iterator<Item = &'a Value>) -> BTreeSet<&'a str> {
@@ -1594,8 +1590,8 @@ fn render_context_for_reply(
         conversation_rules()
     )
 }
-pub fn utc_seconds(now: DateTime<Utc>) -> String {
-    now.to_rfc3339_opts(SecondsFormat::Secs, true)
+pub fn utc_seconds(now: OffsetDateTime) -> String {
+    datetime::utc_seconds(now)
 }
 
 /// Project-only run → say orchestration. `stop` must disable supervision, wait for

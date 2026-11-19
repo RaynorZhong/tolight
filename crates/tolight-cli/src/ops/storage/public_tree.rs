@@ -130,7 +130,12 @@ impl PublicTree {
                     return Err("duplicate public event ID".into());
                 }
                 let stamp = event["created_at"].as_str().ok_or("event timestamp")?;
-                chrono::NaiveDateTime::parse_from_str(stamp, "%Y-%m-%dT%H:%M:%SZ")?;
+                time::PrimitiveDateTime::parse(
+                    stamp,
+                    &time::format_description::parse_borrowed::<1>(
+                        "[year]-[month]-[day]T[hour]:[minute]:[second]Z",
+                    )?,
+                )?;
                 if event.get("agent").is_some()
                     && !keys(&event["agent"], &["agent_id", "display_name"])
                 {

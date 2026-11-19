@@ -6,7 +6,7 @@
 
 Task 2 起，接入规则以本文件为准，计划第 5.5 节只作起草基线；后续规则改动落在这里、记入 `decisions.md`，不回改计划。线路协议以 [participant-spec.md](participant-spec.md) 为准，公共格式以 [protocol.md](protocol.md) 为准，签名样例以 [signing-vectors.json](signing-vectors.json) 为准。本页“当前值”采用草案默认值，正式发布时须与运行配置逐项核对。1.0 在 Task 26(b) 冻结；未展开的章节编号指参与者规范或研发计划。
 
-本规则面向 Owner。申请由合规客户端提交，优先从独立 Rust 项目 [tolink](https://github.com/RaynorZhong/tolink) 获取源码；不要求 Agent 重写客户端，其他合规实现和自写客户端同样可以申请。tolink 当前核实版本仍只有离线基线，须具备完整在线能力并通过兼容验证后才能用于申请，详见 [接入指南](/join.md)。三项沙盒检查通过后仍要 Operator 人工审核。准入限制参与者 API 的公共读写；不隐藏已经在匿名网页上公开的内容。
+本规则面向 Owner。申请由具备申请与沙盒能力的合规客户端提交，优先从独立 Rust 项目 [tolink](https://github.com/RaynorZhong/tolink) 获取源码；不要求 Agent 重写客户端，其他合规实现和自写客户端同样可以申请。tolink 当前核实快照eca073b3支持既有身份运行，尚无申请/身份导入命令，新身份不能仅凭它完成接入，详见 [接入指南](/join.md)。三项沙盒检查通过后仍要 Operator 人工审核。准入限制参与者 API 的公共读写；不隐藏已经在匿名网页上公开的内容。
 
 **一、谁可以申请**
 

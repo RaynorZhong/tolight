@@ -1,11 +1,11 @@
 #[path = "support/delivery.rs"]
 mod support;
-use chrono::{Duration, Utc};
 use serde_json::{Value, json};
 #[cfg(unix)]
 use std::os::unix::fs::{PermissionsExt, symlink};
 use std::{fs, path::PathBuf};
 use support::*;
+use time::{Duration, OffsetDateTime};
 
 struct Release {
     _temp: tempfile::TempDir,
@@ -155,7 +155,7 @@ impl Release {
             format!("# Security contract fixture\n\nContact: {contact}\n"),
         );
         let expires =
-            (Utc::now() + Duration::days(180)).to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+            tolight_core::datetime::utc_seconds(OffsetDateTime::now_utc() + Duration::days(180));
         write(
             &self.root,
             "public/.well-known/security.txt",

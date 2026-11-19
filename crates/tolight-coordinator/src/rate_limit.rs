@@ -1,20 +1,20 @@
 //! Request quotas protect HTTP service; message quotas remain transactional in Store.
 
-use chrono::{DateTime, Duration, Utc};
 use std::{
     collections::{HashMap, VecDeque},
     net::IpAddr,
     sync::Mutex,
 };
+use time::{Duration, OffsetDateTime};
 use tolight_core::models::ApiError;
 
 #[derive(Default)]
 pub struct RequestLimiter {
-    entries: Mutex<HashMap<String, VecDeque<DateTime<Utc>>>>,
+    entries: Mutex<HashMap<String, VecDeque<OffsetDateTime>>>,
 }
 
 impl RequestLimiter {
-    pub fn check(&self, key: String, limit: usize, now: DateTime<Utc>) -> Result<(), ApiError> {
+    pub fn check(&self, key: String, limit: usize, now: OffsetDateTime) -> Result<(), ApiError> {
         let mut entries = self
             .entries
             .lock()
@@ -63,12 +63,12 @@ pub fn source_bucket(ip: IpAddr) -> String {
 
 #[derive(Default)]
 pub struct ApplicationQuota {
-    entries: HashMap<String, Vec<DateTime<Utc>>>,
+    entries: HashMap<String, Vec<OffsetDateTime>>,
 }
 
 impl ApplicationQuota {
     /// Called while admission holds its async mutex across the application transaction.
-    pub fn retry_after(&mut self, source: &str, limit: usize, now: DateTime<Utc>) -> Option<u64> {
+    pub fn retry_after(&mut self, source: &str, limit: usize, now: OffsetDateTime) -> Option<u64> {
         let lower = now - Duration::days(1);
         self.entries.retain(|_, times| {
             times.retain(|time| *time > lower);
@@ -84,7 +84,7 @@ impl ApplicationQuota {
         ))
     }
 
-    pub fn record(&mut self, source: &str, now: DateTime<Utc>) {
+    pub fn record(&mut self, source: &str, now: OffsetDateTime) {
         self.entries
             .entry(source.to_string())
             .or_default()
@@ -93,7 +93,7 @@ impl ApplicationQuota {
 }
 
 fn retry_seconds(duration: Duration) -> u64 {
-    let duration = duration.to_std().unwrap_or_default();
+    let duration = std::time::Duration::try_from(duration).unwrap_or_default();
     (duration.as_secs() + u64::from(duration.subsec_nanos() != 0)).max(1)
 }
 
@@ -104,7 +104,7 @@ mod tests {
     #[test]
     fn request_limit_counts_the_window_and_rounds_retry_up() {
         let limiter = RequestLimiter::default();
-        let time = DateTime::from_timestamp(1000, 0).unwrap();
+        let time = time::OffsetDateTime::from_unix_timestamp(1000).unwrap();
         limiter.check("agent".into(), 2, time).unwrap();
         limiter
             .check("agent".into(), 2, time + Duration::seconds(1))
@@ -141,7 +141,7 @@ mod tests {
 
     #[test]
     fn request_and_application_retries_round_up_without_losing_nanoseconds() {
-        let start = DateTime::from_timestamp(1000, 0).unwrap();
+        let start = time::OffsetDateTime::from_unix_timestamp(1000).unwrap();
         let just_before_next_second = start + Duration::seconds(1) - Duration::nanoseconds(1);
         let requests = RequestLimiter::default();
         requests.check("source".into(), 1, start).unwrap();

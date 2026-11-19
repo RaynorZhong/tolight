@@ -5,7 +5,6 @@ use crate::{
     conformance_session,
     rate_limit::{ApplicationQuota, RequestLimiter},
 };
-use chrono::{DateTime, Duration, SecondsFormat, Utc};
 use serde_json::{Value, json};
 use std::{
     collections::HashMap,
@@ -14,6 +13,7 @@ use std::{
         atomic::{AtomicBool, AtomicU64, Ordering},
     },
 };
+use time::{Duration, OffsetDateTime};
 use tokio::sync::{oneshot, watch};
 use tolight_coordinator_store::{
     SendInput, SendLimits, SendResult, Store, conformance::ConformanceRun,
@@ -96,7 +96,7 @@ impl RoomService {
     pub fn config(&self) -> &Config {
         &self.inner.config
     }
-    pub fn now(&self) -> DateTime<Utc> {
+    pub fn now(&self) -> OffsetDateTime {
         (self.inner.clock)()
     }
     pub fn notify_change(&self) {
@@ -127,7 +127,7 @@ impl RoomService {
     pub(crate) fn application_quota(&self) -> &tokio::sync::Mutex<ApplicationQuota> {
         &self.inner.application_quota
     }
-    pub(crate) fn check_agent_rate(&self, id: &str, now: DateTime<Utc>) -> Result<(), ApiError> {
+    pub(crate) fn check_agent_rate(&self, id: &str, now: OffsetDateTime) -> Result<(), ApiError> {
         self.inner
             .agent_requests
             .check(id.into(), self.config().requests_per_minute, now)
@@ -135,7 +135,7 @@ impl RoomService {
     pub(crate) fn check_source_rate(
         &self,
         source: &str,
-        now: DateTime<Utc>,
+        now: OffsetDateTime,
     ) -> Result<(), ApiError> {
         self.inner.source_requests.check(
             source.into(),
@@ -386,7 +386,7 @@ impl RoomService {
             .store()
             .usage(&context.agent_id, &self.send_limits())
             .await?;
-        let timestamp = |value: DateTime<Utc>| value.to_rfc3339_opts(SecondsFormat::Secs, true);
+        let timestamp = tolight_core::datetime::utc_seconds;
         let application = if matches!(agent.state.as_str(), "PENDING" | "REJECTED") {
             json!({"applied_at":timestamp(agent.registered_at),"expires_at":timestamp(agent.registered_at+Duration::seconds(self.config().application_ttl as i64))})
         } else {

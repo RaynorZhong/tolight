@@ -1,6 +1,5 @@
 //! Shared private-file and native PostgreSQL process helpers.
 use super::{Result, root};
-use chrono::{DateTime, SecondsFormat, Utc};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 #[cfg(unix)]
@@ -16,6 +15,7 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
     time::{Duration, Instant},
 };
+use time::OffsetDateTime;
 
 pub static CANCELLED: AtomicBool = AtomicBool::new(false);
 pub type Env = BTreeMap<OsString, OsString>;
@@ -469,13 +469,13 @@ fn sha256_reader(reader: &mut impl Read, mut cancelled: impl FnMut() -> bool) ->
     Ok(format!("{:x}", digest.finalize()))
 }
 pub fn now() -> String {
-    Utc::now().to_rfc3339_opts(SecondsFormat::Micros, true)
+    tolight_core::datetime::utc_micros(OffsetDateTime::now_utc())
 }
-pub fn utc(value: &str) -> Result<DateTime<Utc>> {
+pub fn utc(value: &str) -> Result<OffsetDateTime> {
     if !value.ends_with('Z') {
         return Err("UTC timestamp ending in Z required".into());
     }
-    Ok(DateTime::parse_from_rfc3339(value)?.with_timezone(&Utc))
+    Ok(tolight_core::datetime::parse_rfc3339(value)?)
 }
 pub fn config(path: Option<&Path>) -> Result<tolight_core::config::Config> {
     match path {

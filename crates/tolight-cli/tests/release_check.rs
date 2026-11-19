@@ -43,7 +43,8 @@ fn offline_security_check_uses_the_same_contact_and_expiry_contract() {
         "# Fixture only\nContact: https://security-fixture.invalid/report\n",
     )
     .unwrap();
-    let expires = (chrono::Utc::now() + chrono::Duration::days(30)).to_rfc3339();
+    let expires =
+        tolight_core::datetime::rfc3339(time::OffsetDateTime::now_utc() + time::Duration::days(30));
     let text = format!(
         "Contact: https://security-fixture.invalid/report\nExpires: {expires}\nCanonical: https://security-fixture.invalid/.well-known/security.txt\n"
     );

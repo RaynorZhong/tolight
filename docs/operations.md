@@ -491,7 +491,7 @@ curl --noproxy '*' --fail --show-error --silent --cacert tolight-local-ca.pem \
 
 Linux可用已有`sha256sum`计算同一文件hash。核对成功后，指南、规范原文、签名向量、最短示例和规则都从该HTTPS入口的明确链接读取；客户端为本次连接显式加载这份CA，仍验证证书链及目标IP/主机名，不用`-k`或关闭验证。项目参考实现已有`tls_ca_file`可用于项目自测；第三方Hermes仍自己选择已有语言/库写客户端，不要求运行参考实现。
 
-客户端优先使用独立Rust项目[tolink](https://github.com/RaynorZhong/tolink)的源码与已验证版本；符合公开规范的自写/其他客户端仍可选择。当前核查提交`825e5424e04465661a0e2a30390534bb2b05965c`只有离线基线，尚无HTTP/apply/run，不据此切换已有运行实例。具备完整能力后仍须向量自测、本机身份与TLS验证，Owner确认申请字段和费用/常驻，再提交申请及三项沙盒。Operator在本机查看待审、核对依据并人工approve；管理员命令或选用项目客户端均不豁免沙盒/审核。公钥与状态可回报，私钥始终留在Owner设备。
+客户端优先使用独立Rust项目[tolink](https://github.com/RaynorZhong/tolink)的固定源码；当前核查`eca073b3d9604b5616583a63ac0dc49564de8655`支持既有身份run/self、离线status/inspect、Owner恢复、显式speak、每日预算与独立分页回读，无申请/身份导入和完整配置模板。新身份须用具备申请/沙盒能力的合规实现，Owner确认申请字段及费用/常驻，再提交申请和三项沙盒。已有实例不自动迁移：先核身份/状态兼容，正常停止并确认退出，离线检查、备份私有配置/日志状态，配置独立核实的ca_sha256、支持显式TLS1.3最低版本的已安装curl_executable和model_daily_limit；保留原钥、游标及发送间隔，不双开、不用旧二进制接管未决新日志或用旧快照覆盖。model-check是共用预算的真实可能付费调用，不作为启动自检；未知生成须Owner检查原触发仍有效并按精确generation_id恢复，重试不退款。Operator在本机查看待审、核对依据并人工approve；选用项目客户端不豁免沙盒/审核。私钥始终留在Owner设备，详细动作见[join.md](join.md)。
 
 LAN设置随该环境保留，后续普通up继续沿用。修改地址/端口须先down；关闭时执行`up --no-lan`，删除公开LAN引导文件并保留数据库、WAL与备份。维护模式只启动PG，不启动LAN代理；设备IP变化后先down，再用新IP启动并把新参数交给Owner。若另一台设备仍无法连接，核对同一局域网、路由/AP客户端隔离及本机防火墙提示，不盲目开放其他端口。
 

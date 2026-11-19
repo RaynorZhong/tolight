@@ -1,5 +1,4 @@
 mod support;
-use chrono::Utc;
 use serde_json::{Value, json};
 use sqlx::PgPool;
 use std::sync::{
@@ -7,11 +6,12 @@ use std::sync::{
     atomic::{AtomicI64, Ordering},
 };
 use support::fake_agent::{FakeAgent, Reply, TestApp};
+use time::OffsetDateTime;
 use tolight_coordinator::operator;
 use tolight_core::participant::ReadRequest;
 
 async fn app(pool: PgPool, daily: usize, window: u64) -> (TestApp, Arc<AtomicI64>) {
-    let now = Arc::new(AtomicI64::new(Utc::now().timestamp()));
+    let now = Arc::new(AtomicI64::new(OffsetDateTime::now_utc().unix_timestamp()));
     let clock = now.clone();
     let app = TestApp::configured_clock(
         pool,
@@ -21,7 +21,7 @@ async fn app(pool: PgPool, daily: usize, window: u64) -> (TestApp, Arc<AtomicI64
             cfg.conformance_retry_after = 1;
         },
         Arc::new(move || {
-            chrono::DateTime::from_timestamp(clock.load(Ordering::SeqCst), 0).unwrap()
+            time::OffsetDateTime::from_unix_timestamp(clock.load(Ordering::SeqCst)).unwrap()
         }),
     )
     .await;
@@ -378,7 +378,7 @@ async fn sanitized_failures_timeouts_early_retries_and_restart_are_private_and_p
             .last()
             .unwrap()
             .limited_at,
-        Some(chrono::DateTime::from_timestamp(clock.load(Ordering::SeqCst), 0).unwrap())
+        Some(time::OffsetDateTime::from_unix_timestamp(clock.load(Ordering::SeqCst)).unwrap())
     );
     assert_eq!(
         request(&alice, &app, &clock, "POST", "messages", "", Some(reply))
@@ -529,9 +529,13 @@ async fn waiting_locks(pool: &PgPool, wanted: i64) {
 #[sqlx::test(migrations = "../tolight-coordinator-store/migrations")]
 async fn sandbox_deadlines_use_time_after_the_agent_row_lock_is_acquired(pool: PgPool) {
     let (app, clock) = app(pool.clone(), 1, 2).await;
-    let today = Utc::now().date_naive();
+    let today = OffsetDateTime::now_utc().date();
     clock.store(
-        today.and_hms_opt(12, 0, 0).unwrap().and_utc().timestamp(),
+        today
+            .with_hms(12, 0, 0)
+            .unwrap()
+            .assume_utc()
+            .unix_timestamp(),
         Ordering::SeqCst,
     );
     for (index, path) in ["messages", "events", "self", "agents"]
@@ -605,7 +609,7 @@ async fn sandbox_deadlines_use_time_after_the_agent_row_lock_is_acquired(pool: P
         // when the reply was already eligible to pass before it blocked.
         clock.fetch_add(3, Ordering::SeqCst);
         let decision_time =
-            chrono::DateTime::from_timestamp(clock.load(Ordering::SeqCst), 0).unwrap();
+            time::OffsetDateTime::from_unix_timestamp(clock.load(Ordering::SeqCst)).unwrap();
         blocker.commit().await.unwrap();
         let response = waiting.await.unwrap();
         if path == "messages" {
@@ -652,7 +656,11 @@ async fn sandbox_deadlines_use_time_after_the_agent_row_lock_is_acquired(pool: P
     // Daily counts and a new session must use the same post-lock decision time.
     // Reuse applicants without consuming another per-source application slot.
     clock.store(
-        today.and_hms_opt(23, 59, 58).unwrap().and_utc().timestamp(),
+        today
+            .with_hms(23, 59, 58)
+            .unwrap()
+            .assume_utc()
+            .unix_timestamp(),
         Ordering::SeqCst,
     );
     let mut blocker = pool.begin().await.unwrap();
@@ -667,7 +675,8 @@ async fn sandbox_deadlines_use_time_after_the_agent_row_lock_is_acquired(pool: P
         tokio::spawn(async move { room.read(&context, ReadRequest::default()).await.unwrap() });
     waiting_locks(&pool, 2).await;
     clock.fetch_add(3, Ordering::SeqCst);
-    let decision_time = chrono::DateTime::from_timestamp(clock.load(Ordering::SeqCst), 0).unwrap();
+    let decision_time =
+        time::OffsetDateTime::from_unix_timestamp(clock.load(Ordering::SeqCst)).unwrap();
     blocker.commit().await.unwrap();
     assert_eq!(
         waiting_status.await.unwrap()["conformance"]["runs_today"],

@@ -46,8 +46,10 @@ pub struct SnapshotKey {
     pub public_key: String,
     pub agent_id: String,
     pub application_id: Uuid,
-    pub created_at: DateTime<Utc>,
-    pub revoked_at: Option<DateTime<Utc>>,
+    #[serde(with = "tolight_core::datetime::serde")]
+    pub created_at: OffsetDateTime,
+    #[serde(default, with = "tolight_core::datetime::serde::option")]
+    pub revoked_at: Option<OffsetDateTime>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize, sqlx::FromRow)]
 #[serde(deny_unknown_fields)]
@@ -60,15 +62,18 @@ pub struct SnapshotAction {
     pub target_public_key: Option<String>,
     pub reason_code: Option<String>,
     pub detail: Option<Value>,
-    pub created_at: DateTime<Utc>,
+    #[serde(with = "tolight_core::datetime::serde")]
+    pub created_at: OffsetDateTime,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ControlSnapshot {
     pub schema: String,
     pub export_id: Uuid,
-    pub exported_at: DateTime<Utc>,
-    pub restore_target: DateTime<Utc>,
+    #[serde(with = "tolight_core::datetime::serde")]
+    pub exported_at: OffsetDateTime,
+    #[serde(with = "tolight_core::datetime::serde")]
+    pub restore_target: OffsetDateTime,
     pub source_anchor: SourceAnchor,
     pub room: SnapshotRoom,
     pub agents: Vec<Agent>,
@@ -306,7 +311,7 @@ async fn anchor_on(tx: &mut Transaction<'_, Postgres>) -> Result<SourceAnchor> {
     Ok(SourceAnchor { seq, event_id })
 }
 fn control_fingerprint(agents: &[Agent], room: &RoomState) -> Value {
-    json!({"agents":agents.iter().map(|a|json!([a.agent_id,a.application_id,a.application_revision,a.state,a.public_key,a.muted_until,a.muted_indefinitely,a.mute_reason])).collect::<Vec<_>>(),"paused":room.paused,"applications_open":room.applications_open})
+    json!({"agents":agents.iter().map(|a|json!([a.agent_id,a.application_id,a.application_revision,a.state,a.public_key,a.muted_until.map(tolight_core::datetime::json_timestamp),a.muted_indefinitely,a.mute_reason])).collect::<Vec<_>>(),"paused":room.paused,"applications_open":room.applications_open})
 }
 
 impl Store {
@@ -314,7 +319,7 @@ impl Store {
         &self,
         path: &Path,
         public_root: &Path,
-        restore_target: DateTime<Utc>,
+        restore_target: OffsetDateTime,
     ) -> Result<ControlSnapshot> {
         self.export_controls_observed(path, public_root, restore_target, |_| async { Ok(()) })
             .await
@@ -323,7 +328,7 @@ impl Store {
         &self,
         path: &Path,
         public_root: &Path,
-        restore_target: DateTime<Utc>,
+        restore_target: OffsetDateTime,
         observer: F,
     ) -> Result<ControlSnapshot>
     where
@@ -331,7 +336,7 @@ impl Store {
         Fut: std::future::Future<Output = Result<()>> + Send,
     {
         let path = validate_private_path(path, public_root)?;
-        if path.exists() || restore_target > Utc::now() {
+        if path.exists() || restore_target > OffsetDateTime::now_utc() {
             return Err(path_error());
         }
         let mut lease = self.acquire_serve_lock().await?;
@@ -343,7 +348,7 @@ impl Store {
         schema_on(&mut tx).await?;
         let room = room_in(&mut tx).await?;
         let snapshot=ControlSnapshot {
-            schema:"tolight-control-snapshot/1".into(),export_id:Uuid::new_v4(),exported_at:Utc::now(),restore_target,
+            schema:"tolight-control-snapshot/1".into(),export_id:Uuid::new_v4(),exported_at:OffsetDateTime::now_utc(),restore_target,
             source_anchor:anchor_on(&mut tx).await?,room:SnapshotRoom{paused:room.paused,applications_open:room.applications_open},
             agents:agents_on(&mut tx).await?,agent_keys:keys_on(&mut tx).await?,
             operator_actions:sqlx::query_as("SELECT action_id,kind,target_agent_id,target_application_id,target_event_id,target_public_key,reason_code,detail,created_at FROM operator_actions ORDER BY created_at,action_id").fetch_all(&mut *tx).await.map_err(db)?,
@@ -574,8 +579,8 @@ impl PreparedRestore {
             let joining = source.state == "ACTIVE" && !before.is_some_and(|a| a.state == "ACTIVE");
             let leaving = source.state == "LEFT" && !before.is_some_and(|a| a.state == "LEFT");
             if joining {
-                restored.joined_at = Some(Utc::now());
-                restored.state_changed_at = Utc::now();
+                restored.joined_at = Some(OffsetDateTime::now_utc());
+                restored.state_changed_at = OffsetDateTime::now_utc();
             }
             let value = serde_json::to_value(&restored).map_err(|_| invalid_snapshot())?;
             sqlx::query(r#"INSERT INTO agents SELECT * FROM jsonb_populate_record(NULL::agents,$1)
@@ -702,7 +707,8 @@ mute_reason=EXCLUDED.mute_reason,conformance_suite_version=EXCLUDED.conformance_
 #[derive(Clone, Debug, Serialize, sqlx::FromRow)]
 pub struct Attempt {
     pub client_message_id: String,
-    pub created_at: DateTime<Utc>,
+    #[serde(with = "tolight_core::datetime::serde")]
+    pub created_at: OffsetDateTime,
     pub outcome: String,
     pub reason_code: Option<String>,
     pub reason_detail: Option<String>,
@@ -715,7 +721,7 @@ impl Store {
     pub async fn attempts_since(
         &self,
         id: &str,
-        since: Option<DateTime<Utc>>,
+        since: Option<OffsetDateTime>,
     ) -> Result<Vec<Attempt>> {
         sqlx::query_as("SELECT client_message_id,created_at,outcome,reason_code,reason_detail,event_seq FROM message_attempts WHERE agent_id=$1 AND ($2::timestamptz IS NULL OR created_at >= $2) ORDER BY created_at,client_message_id").bind(id).bind(since).fetch_all(&self.pool).await.map_err(db)
     }
@@ -749,7 +755,7 @@ mod restore_tests {
         };
         store
             .conformance_transaction(&context, |data| {
-                data.agent.conformance_passed_at = Some(Utc::now());
+                data.agent.conformance_passed_at = Some(OffsetDateTime::now_utc());
                 data.agent.conformance_suite_version =
                     Some(tolight_core::CONFORMANCE_SUITE_VERSION.into());
             })
@@ -764,7 +770,11 @@ mod restore_tests {
     async fn export(store: &Store, dir: &Path) -> (ControlSnapshot, Vec<u8>) {
         let path = dir.join(format!("snapshot-{}.json", Uuid::new_v4()));
         let snapshot = store
-            .export_controls(&path, &dir.join("public"), Utc::now() - Duration::hours(1))
+            .export_controls(
+                &path,
+                &dir.join("public"),
+                OffsetDateTime::now_utc() - Duration::hours(1),
+            )
             .await
             .unwrap();
         (snapshot, fs::read(path).unwrap())
@@ -871,7 +881,7 @@ mod restore_tests {
                 .export_controls(
                     &dir.path().join("blocked.json"),
                     &dir.path().join("public"),
-                    Utc::now()
+                    OffsetDateTime::now_utc()
                 )
                 .await
                 .is_err()
@@ -891,12 +901,12 @@ mod restore_tests {
             .await
             .unwrap();
         store
-            .export_controls(&path, &dir.path().join("public"), Utc::now())
+            .export_controls(&path, &dir.path().join("public"), OffsetDateTime::now_utc())
             .await
             .unwrap();
         assert!(
             store
-                .export_controls(&path, &dir.path().join("public"), Utc::now())
+                .export_controls(&path, &dir.path().join("public"), OffsetDateTime::now_utc())
                 .await
                 .is_err()
         );
@@ -905,7 +915,7 @@ mod restore_tests {
                 .export_controls(
                     &dir.path().join("public/private.json"),
                     &dir.path().join("public"),
-                    Utc::now()
+                    OffsetDateTime::now_utc()
                 )
                 .await
                 .is_err()
@@ -923,7 +933,7 @@ mod restore_tests {
                     .export_controls(
                         &dir.path().join("alias/private.json"),
                         &dir.path().join("public"),
-                        Utc::now()
+                        OffsetDateTime::now_utc()
                     )
                     .await
                     .is_err()
@@ -942,7 +952,7 @@ mod restore_tests {
                 .export_controls(
                     &dir.path().join("blocked.json"),
                     &dir.path().join("public"),
-                    Utc::now()
+                    OffsetDateTime::now_utc()
                 )
                 .await
                 .is_err()
@@ -957,9 +967,9 @@ mod restore_tests {
         store.set_key("alice", &new).await.unwrap();
         // Force sub-microsecond input on every platform. Recovery must match
         // the persisted source deadline, not the host clock's finer precision.
-        let until =
-            DateTime::from_timestamp((Utc::now() + Duration::hours(2)).timestamp(), 123_456_789)
-                .unwrap();
+        let until = (OffsetDateTime::now_utc() + Duration::hours(2))
+            .replace_nanosecond(123_456_789)
+            .unwrap();
         store.mute("alice", Some(until), "spam").await.unwrap();
         let expected_until = store.review("alice").await.unwrap().muted_until.unwrap();
         store.applications_open(false).await.unwrap();
@@ -1216,7 +1226,9 @@ mod restore_tests {
         let (_, bytes) = export(&store, dir.path()).await;
         let original: Value = serde_json::from_slice(&bytes).unwrap();
         let before = recovery_database_state(&pool).await;
-        let until = json!(Utc::now() + Duration::hours(1));
+        let until = json!(tolight_core::datetime::json_timestamp(
+            OffsetDateTime::now_utc() + Duration::hours(1)
+        ));
         let cases = [
             ("controls-active", json!({"state_reason":"undocumented"})),
             ("controls-active", json!({"state_reason":"spam"})),
@@ -1305,13 +1317,17 @@ mod restore_tests {
         store
             .mute(
                 "mute-expired",
-                Some(Utc::now() - Duration::hours(2)),
+                Some(OffsetDateTime::now_utc() - Duration::hours(2)),
                 "other",
             )
             .await
             .unwrap();
         store
-            .mute("mute-future", Some(Utc::now() + Duration::hours(2)), "spam")
+            .mute(
+                "mute-future",
+                Some(OffsetDateTime::now_utc() + Duration::hours(2)),
+                "spam",
+            )
             .await
             .unwrap();
         store
@@ -1375,7 +1391,7 @@ mod restore_tests {
             .export_controls_observed(
                 &path,
                 &dir.path().join("public"),
-                Utc::now(),
+                OffsetDateTime::now_utc(),
                 move |pid| async move {
                     sqlx::query_scalar::<_, bool>("SELECT pg_terminate_backend($1)")
                         .bind(pid)

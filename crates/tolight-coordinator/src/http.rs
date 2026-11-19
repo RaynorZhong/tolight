@@ -74,9 +74,7 @@ async fn no_store(
         .insert(header::CACHE_CONTROL, "no-store".parse().unwrap());
     response.headers_mut().insert(
         header::DATE,
-        room.now()
-            .format("%a, %d %b %Y %H:%M:%S GMT")
-            .to_string()
+        tolight_core::datetime::http_date(room.now())
             .parse()
             .expect("HTTP date"),
     );

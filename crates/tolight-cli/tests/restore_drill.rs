@@ -1,4 +1,3 @@
-use chrono::{Duration, SecondsFormat, Utc};
 use serde_json::Value;
 use sqlx::{ConnectOptions, PgPool};
 use std::{
@@ -6,6 +5,7 @@ use std::{
     path::{Path, PathBuf},
     process::{Command, Output, Stdio},
 };
+use time::{Duration, OffsetDateTime};
 use tolight_coordinator_store::{ApplicationInput, ApplyLimits, SendInput, SendLimits, Store};
 use tolight_core::models::AgentContext;
 use tolight_core::signing::public_key_from_seed;
@@ -116,7 +116,7 @@ async fn approve(store: &Store, context: &AgentContext) {
     // reference-client HTTP tests exercise the real four-event examiner.
     store
         .conformance_transaction(context, |data| {
-            data.agent.conformance_passed_at = Some(Utc::now());
+            data.agent.conformance_passed_at = Some(OffsetDateTime::now_utc());
             data.agent.conformance_suite_version =
                 Some(tolight_core::CONFORMANCE_SUITE_VERSION.into());
         })
@@ -204,7 +204,7 @@ async fn real_backup_and_six_step_restore_require_new_active_identity_approval(p
     ));
     let backup = PathBuf::from(backup_result["backup"].as_str().unwrap());
     assert_eq!(&fs::read(&backup).unwrap()[..5], b"PGDMP");
-    let target = Utc::now().to_rfc3339_opts(SecondsFormat::Nanos, true);
+    let target = tolight_core::datetime::utc_nanos(OffsetDateTime::now_utc());
     store.owner_leave(&alice_old, "withdraw").await.unwrap();
     let alice = apply(&store, "alice", 134).await;
     approve(&store, &alice).await;
@@ -215,7 +215,7 @@ async fn real_backup_and_six_step_restore_require_new_active_identity_approval(p
     let dave_application = store.review("dave").await.unwrap().application_id;
     let new_key = public_key_from_seed(&[136; 32]);
     store.set_key("bob", &new_key).await.unwrap();
-    let muted_until = Utc::now() + Duration::hours(2);
+    let muted_until = OffsetDateTime::now_utc() + Duration::hours(2);
     store.mute("bob", Some(muted_until), "spam").await.unwrap();
     let muted_until = store.review("bob").await.unwrap().muted_until.unwrap();
     store.owner_leave(&cara, "leave").await.unwrap();
@@ -296,7 +296,7 @@ async fn real_backup_and_six_step_restore_require_new_active_identity_approval(p
     assert_eq!(bob["public_key"], new_key);
     assert_eq!(
         bob["muted_until"],
-        serde_json::to_value(muted_until).unwrap()
+        Value::String(tolight_core::datetime::json_timestamp(muted_until))
     );
     let cara = agents.iter().find(|a| a["agent_id"] == "cara").unwrap();
     assert_eq!(cara["state"], "LEFT");
@@ -427,12 +427,12 @@ async fn backup_rejects_public_aliases_and_retention_only_prunes_owned_complete_
         Some(fs::metadata(first_path).unwrap().len())
     );
     let created =
-        chrono::DateTime::parse_from_rfc3339(metadata["created_at"].as_str().unwrap()).unwrap();
-    let stamp = created.timestamp() as f64 + created.timestamp_subsec_nanos() as f64 / 1e9;
+        tolight_core::datetime::parse_rfc3339(metadata["created_at"].as_str().unwrap()).unwrap();
+    let stamp = created.unix_timestamp() as f64 + created.nanosecond() as f64 / 1e9;
     assert!(
         tolight_cli::ops::storage::backup::successful_backup_times(
             first_path.parent().unwrap(),
-            Utc::now().timestamp() as f64 + 1.0
+            OffsetDateTime::now_utc().unix_timestamp() as f64 + 1.0
         )
         .contains(&stamp)
     );
@@ -555,7 +555,7 @@ async fn drill_refuses_running_source_before_creating_database_and_cleans_failed
     );
     let broken = directory.path().join("broken.dump");
     fs::write(&broken, "not a pg_dump").unwrap();
-    let target = Utc::now().to_rfc3339_opts(SecondsFormat::Nanos, true);
+    let target = tolight_core::datetime::utc_nanos(OffsetDateTime::now_utc());
     let work = directory.path().join("drills");
     let args = drill_args(&broken, &config, &public, &target, &work);
     let lease = store.acquire_serve_lock().await.unwrap();
@@ -597,7 +597,7 @@ async fn failed_target_startup_stops_only_its_child_before_dropping_its_database
         &["--output-dir", backups.to_str().unwrap()],
     ));
     let backup = Path::new(result["backup"].as_str().unwrap());
-    let target = Utc::now().to_rfc3339_opts(SecondsFormat::Nanos, true);
+    let target = tolight_core::datetime::utc_nanos(OffsetDateTime::now_utc());
     // All data operations use the real binary. Only the final server is replaced
     // by an actual process that never listens, proving the finally cleanup path.
     let wrapper = directory.path().join("unhealthy-serve.sh");

@@ -31,13 +31,13 @@ async fn bounded_upload_deadline_and_total_deadline_do_not_block_healthy_request
             "messages",
             "",
             vec![b'a'; 32769],
-            chrono::Utc::now().timestamp(),
+            time::OffsetDateTime::now_utc().unix_timestamp(),
             &[],
         )
         .await;
     assert_eq!(huge.status, 413);
     let body = br#"{"client_message_id":"slow","text":"drip upload"}"#;
-    let timestamp = chrono::Utc::now().timestamp().to_string();
+    let timestamp = time::OffsetDateTime::now_utc().unix_timestamp().to_string();
     let headers = signing::sign_request(
         &alice.seed,
         "POST",
@@ -93,7 +93,7 @@ async fn trusted_forwarded_source_requires_an_explicit_local_peer_and_replay_is_
             "self",
             "",
             vec![],
-            chrono::Utc::now().timestamp(),
+            time::OffsetDateTime::now_utc().unix_timestamp(),
             &[
                 ("X-Forwarded-Proto", "https"),
                 ("X-Forwarded-For", "8.8.8.8"),
@@ -103,7 +103,7 @@ async fn trusted_forwarded_source_requires_an_explicit_local_peer_and_replay_is_
     assert_eq!(response.status, 200);
     let body =
         serde_json::to_vec(&json!({"client_message_id":"replay","text":"@alice replay"})).unwrap();
-    let at = chrono::Utc::now().timestamp();
+    let at = time::OffsetDateTime::now_utc().unix_timestamp();
     let first = alice
         .raw(&app, "POST", "messages", "", body.clone(), at, &[])
         .await;
@@ -248,7 +248,7 @@ async fn public_scheme_is_configured_and_source_or_agent_floods_do_not_cross_buc
     app.room.store().approve(&review, false).await.unwrap();
     let client = reqwest::Client::builder().no_proxy().build().unwrap();
     for index in 0..3 {
-        let timestamp = chrono::Utc::now().timestamp().to_string();
+        let timestamp = time::OffsetDateTime::now_utc().unix_timestamp().to_string();
         let signed = signing::sign_request(
             &alice.seed,
             "GET",
@@ -280,7 +280,7 @@ async fn public_scheme_is_configured_and_source_or_agent_floods_do_not_cross_buc
             assert_eq!(body["error"]["code"], "rate_limited");
         }
     }
-    let timestamp = (chrono::Utc::now().timestamp() - 301).to_string();
+    let timestamp = (time::OffsetDateTime::now_utc().unix_timestamp() - 301).to_string();
     let signed = signing::sign_request(
         &alice.seed,
         "GET",
@@ -302,7 +302,7 @@ async fn public_scheme_is_configured_and_source_or_agent_floods_do_not_cross_buc
         .await
         .unwrap();
     assert_eq!(response.status(), 421);
-    let timestamp = (chrono::Utc::now().timestamp() - 301).to_string();
+    let timestamp = (time::OffsetDateTime::now_utc().unix_timestamp() - 301).to_string();
     let signed = signing::sign_request(
         &alice.seed,
         "GET",

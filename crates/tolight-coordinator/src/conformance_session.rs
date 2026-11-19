@@ -1,7 +1,7 @@
 //! Pure conformance decisions: time, a private session row and a request in;
 //! deterministic state and protocol result out. No database or HTTP I/O.
-use chrono::{DateTime, Duration, Utc};
 use serde_json::{Value, json};
+use time::{Duration, OffsetDateTime};
 use tolight_coordinator_store::{
     SendResult,
     conformance::{ConformanceData, ConformanceRun},
@@ -17,7 +17,7 @@ use tolight_core::{
 pub const SUITE_VERSION: &str = tolight_core::CONFORMANCE_SUITE_VERSION;
 const EXAMINER: &str = "examiner";
 
-pub fn progress(data: &mut ConformanceData, now: DateTime<Utc>, config: &Config) {
+pub fn progress(data: &mut ConformanceData, now: OffsetDateTime, config: &Config) {
     if data.agent.state != "PENDING" {
         return;
     }
@@ -49,7 +49,7 @@ pub fn progress(data: &mut ConformanceData, now: DateTime<Utc>, config: &Config)
 pub fn begin_read(
     data: &mut ConformanceData,
     candidate: ConformanceRun,
-    now: DateTime<Utc>,
+    now: OffsetDateTime,
     config: &Config,
     allow_start: bool,
 ) -> bool {
@@ -70,7 +70,7 @@ pub fn send(
     data: &mut ConformanceData,
     request: &SendRequest,
     sanitized: &Result<String, String>,
-    now: DateTime<Utc>,
+    now: OffsetDateTime,
     config: &Config,
 ) -> Result<SendResult, ApiError> {
     progress(data, now, config);
@@ -195,7 +195,7 @@ pub fn participants(data: &ConformanceData) -> Value {
     json!({"timeline":"conformance","agents":agents})
 }
 
-pub fn self_info(data: &ConformanceData, now: DateTime<Utc>, config: &Config) -> Value {
+pub fn self_info(data: &ConformanceData, now: OffsetDateTime, config: &Config) -> Value {
     json!({
         "passed_at":data.agent.conformance_passed_at.map(format_time),"suite_version":data.agent.conformance_suite_version,
         "last_run":data.last_run().map(|run|json!({"run_id":run.run_id,"finished_at":run.finished_at.map(format_time),"passed":run.passed,"failure_reason":run.failure_reason})),
@@ -206,18 +206,17 @@ pub fn self_info(data: &ConformanceData, now: DateTime<Utc>, config: &Config) ->
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::TimeZone;
-    fn now() -> DateTime<Utc> {
-        Utc.with_ymd_and_hms(2026, 11, 14, 12, 0, 0).unwrap()
+    fn now() -> OffsetDateTime {
+        tolight_core::datetime::parse_rfc3339("2026-11-14T12:00:00Z").unwrap()
     }
     fn data() -> ConformanceData {
-        let agent=serde_json::from_value(json!({"agent_id":"alice","application_id":"00000000-0000-0000-0000-000000000001","application_revision":1,"display_name":"Alice","display_name_key":"alice","bio":"Alice公开简介","framework_label":null,"owner_contact":"alice@example.invalid","state":"PENDING","state_reason":null,"state_changed_at":now(),"registered_at":now(),"joined_at":null,"muted_until":null,"muted_indefinitely":false,"mute_reason":null,"conformance_suite_version":null,"conformance_passed_at":null,"last_seen_at":null,"public_key":"public-test-key"})).unwrap();
+        let agent=serde_json::from_value(json!({"agent_id":"alice","application_id":"00000000-0000-0000-0000-000000000001","application_revision":1,"display_name":"Alice","display_name_key":"alice","bio":"Alice公开简介","framework_label":null,"owner_contact":"alice@example.invalid","state":"PENDING","state_reason":null,"state_changed_at":tolight_core::datetime::json_timestamp(now()),"registered_at":tolight_core::datetime::json_timestamp(now()),"joined_at":null,"muted_until":null,"muted_indefinitely":false,"mute_reason":null,"conformance_suite_version":null,"conformance_passed_at":null,"last_seen_at":null,"public_key":"public-test-key"})).unwrap();
         ConformanceData {
             agent,
             runs: vec![],
         }
     }
-    fn start(data: &mut ConformanceData, now: DateTime<Utc>, config: &Config) -> bool {
+    fn start(data: &mut ConformanceData, now: OffsetDateTime, config: &Config) -> bool {
         let run = ConformanceRun::candidate("alice", now, data.runs.len() + 1);
         begin_read(data, run, now, config, true)
     }
@@ -263,7 +262,7 @@ mod tests {
         assert_eq!(next.events[0]["mentions"][0]["display_name"], "Alice");
         let all = events(data.last_run().unwrap(), "alice");
         assert_eq!(
-            DateTime::parse_from_rfc3339(all[0]["created_at"].as_str().unwrap()).unwrap(),
+            tolight_core::datetime::parse_rfc3339(all[0]["created_at"].as_str().unwrap()).unwrap(),
             now() - Duration::minutes(30)
         );
         assert_eq!(participants(&data)["agents"].as_array().unwrap().len(), 2);

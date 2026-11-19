@@ -1,11 +1,11 @@
 #![allow(dead_code)]
-use chrono::Utc;
 use serde_json::{Value, json};
 use sqlx::PgPool;
 use std::sync::{
     Arc,
     atomic::{AtomicU64, Ordering},
 };
+use time::OffsetDateTime;
 use tolight_coordinator::{http, operator, room::RoomService};
 use tolight_coordinator_store::Store;
 use tolight_core::{config::Config, models::AgentContext, signing};
@@ -163,7 +163,7 @@ impl FakeAgent {
             endpoint,
             query,
             bytes,
-            Utc::now().timestamp(),
+            OffsetDateTime::now_utc().unix_timestamp(),
             &[],
         )
         .await

@@ -2,7 +2,6 @@
 //! to this fixture; neither the default environment nor an existing preview is used.
 #![cfg(unix)]
 
-use chrono::{DateTime, Utc};
 use reqwest::{Client, Url};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -24,6 +23,7 @@ use std::{
     },
     time::{Duration, Instant},
 };
+use time::OffsetDateTime;
 use tolight_core::signing;
 use uuid::Uuid;
 
@@ -75,7 +75,7 @@ async fn lan_signed_bytes(
 ) -> (u16, reqwest::header::HeaderMap, Value) {
     let url = Url::parse(&format!("{origin}/participant/v1/{endpoint}")).unwrap();
     let authority = format!("{}:{}", url.host_str().unwrap(), url.port().unwrap());
-    let timestamp = Utc::now().timestamp().to_string();
+    let timestamp = OffsetDateTime::now_utc().unix_timestamp().to_string();
     let headers = signing::sign_request(
         seed,
         method,
@@ -222,9 +222,25 @@ async fn lan_tls_onboarding_keeps_trust_authentication_and_operator_approval() {
     assert_eq!(copy_payload["schema"], "tolight-lan-join/1");
     for text in [&guide, copy_payload["prompt"].as_str().unwrap()] {
         assert!(text.contains("https://github.com/RaynorZhong/tolink"));
-        assert!(text.contains("825e5424e04465661a0e2a30390534bb2b05965c"));
-        assert!(text.contains("离线"));
-        assert!(text.contains("不能在线接入") || text.contains("不可在线接入"));
+        assert!(text.contains("eca073b3d9604b5616583a63ac0dc49564de8655"));
+        assert!(text.contains("已有身份"));
+        assert!(text.contains("init/apply") || text.contains("`init`/`apply`"));
+        for required in [
+            "status",
+            "inspect",
+            "ca_sha256",
+            "curl_executable",
+            "model_daily_limit",
+            "recover import",
+            "discard",
+        ] {
+            assert!(
+                text.contains(required),
+                "missing onboarding boundary {required}"
+            );
+        }
+        assert!(text.contains("不双挂") || text.contains("不能双挂"));
+        assert!(!text.contains("只有离线基线"));
     }
     for field in [
         "web_origin",
@@ -1443,7 +1459,7 @@ async fn owned_environment_survives_restart_and_produces_both_real_backups() {
             "--output",
             snapshot,
             "--restore-target",
-            Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Nanos, true)
+            tolight_core::datetime::utc_nanos(OffsetDateTime::now_utc())
         ])
         .await;
     assert_eq!(read_json(&snapshot)["schema"], "tolight-control-snapshot/1");
@@ -1642,7 +1658,8 @@ async fn local_automation_makes_a_real_backup_checks_and_private_pending_notific
     assert_eq!(restarted["configuration"]["check_interval_seconds"], 60);
     assert_eq!(restarted["backup"]["status"], "scheduled");
     assert!(
-        restarted["backup"]["next_due_at"].as_f64().unwrap() - Utc::now().timestamp() as f64
+        restarted["backup"]["next_due_at"].as_f64().unwrap()
+            - OffsetDateTime::now_utc().unix_timestamp() as f64
             > 86000.
     );
     assert_eq!(
@@ -1752,7 +1769,7 @@ async fn automation_retries_a_temporary_config_error_without_losing_checks_or_ba
             .contains("private-config-sentinel")
     );
 
-    let restored_at = Utc::now().timestamp_millis() as f64 / 1000.;
+    let restored_at = (OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000_000) as f64 / 1000.;
     atomic_write(&config_path, &original).unwrap();
     drop(restore);
     let recovered = wait_automation(&mut fixture, |state| {
@@ -1811,7 +1828,7 @@ async fn large_automation_reports_keep_status_and_normal_shutdown_available() {
     // state. The actual next check consumes them and emits a large live report.
     let alerts = fixture.directory.join("automation/alerts.json");
     let mut history = read_json(&alerts);
-    let now = Utc::now().timestamp() as f64;
+    let now = OffsetDateTime::now_utc().unix_timestamp() as f64;
     for index in 0..80 {
         let key = format!(
             "tolight_message_limit_rejections_total{{\"agent_id\": \"report-agent-{index:02}\"}}"
@@ -2187,10 +2204,8 @@ fn process_identity(pid: u32) -> String {
 }
 
 fn assert_fresh(timestamp: &str) {
-    let completed = DateTime::parse_from_rfc3339(timestamp)
-        .unwrap()
-        .with_timezone(&Utc);
-    assert!(Utc::now().signed_duration_since(completed).num_seconds() < 60);
+    let completed = tolight_core::datetime::parse_rfc3339(timestamp).unwrap();
+    assert!((OffsetDateTime::now_utc() - completed).whole_seconds() < 60);
 }
 
 async fn fetch(http: &Client, url: &str) -> (u16, reqwest::header::HeaderMap, Vec<u8>) {

@@ -1,4 +1,3 @@
-use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use std::{
     future::Future,
@@ -9,15 +8,17 @@ use std::{
     },
     time::Duration,
 };
+use time::OffsetDateTime;
 use tolight_core::config::{Config, PublicConfig};
+use tolight_core::datetime;
 use tolight_reference_client::{
     Clock, Generator, LocalState, ReferenceClient, ReferenceConfig, RunOptions, keygen,
 };
 
 struct Time(AtomicI64);
 impl Clock for Time {
-    fn now(&self) -> DateTime<Utc> {
-        DateTime::from_timestamp(self.0.load(Ordering::SeqCst), 0).unwrap()
+    fn now(&self) -> OffsetDateTime {
+        datetime::from_timestamp(self.0.load(Ordering::SeqCst), 0).unwrap()
     }
     fn sleep(&self, duration: Duration) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
         self.0
@@ -45,12 +46,12 @@ impl Generator for FirstSilent {
 
 async fn exercise(pool: PgPool, daily_limit: usize) {
     let temp = tempfile::tempdir().unwrap();
-    let noon = Utc::now()
-        .date_naive()
-        .and_hms_opt(12, 0, 0)
+    let noon = OffsetDateTime::now_utc()
+        .date()
+        .with_hms(12, 0, 0)
         .unwrap()
-        .and_utc()
-        .timestamp();
+        .assume_utc()
+        .unix_timestamp();
     let time = Arc::new(Time(AtomicI64::new(noon)));
     let clock = time.clone();
     let config = Config {

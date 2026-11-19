@@ -165,7 +165,7 @@ async fn pending_reviews_keep_private_details_local_and_approve_only_qualified_s
     .await;
     assert_eq!(participant.status, 401);
     assert!(!String::from_utf8_lossy(&participant.bytes).contains("owner@example.invalid"));
-    let timestamp = chrono::Utc::now().timestamp().to_string();
+    let timestamp = time::OffsetDateTime::now_utc().unix_timestamp().to_string();
     let signature = tolight_core::signing::sign_request(
         &agent.seed,
         "GET",

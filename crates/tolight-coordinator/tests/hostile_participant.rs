@@ -35,7 +35,7 @@ async fn fifty_hostile_sends_and_rejected_secret_shapes_leave_other_agents_usabl
             },
         }))
         .unwrap();
-        let timestamp = chrono::Utc::now().timestamp().to_string();
+        let timestamp = time::OffsetDateTime::now_utc().unix_timestamp().to_string();
         let signed = tolight_core::signing::sign_request(
             &hostile.seed,
             "POST",

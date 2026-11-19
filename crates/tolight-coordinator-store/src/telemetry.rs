@@ -1,7 +1,7 @@
 //! Read-only operational metrics; no Owner data leaves the store.
 use super::{Result, RoomState, Store, db};
-use chrono::{DateTime, Utc};
 use sqlx::Row;
+use time::OffsetDateTime;
 
 pub struct AgentTelemetry {
     pub agent_id: String,
@@ -25,7 +25,7 @@ pub struct TelemetrySnapshot {
     pub muted_count: i64,
 }
 impl Store {
-    pub async fn telemetry(&self, now: DateTime<Utc>) -> Result<TelemetrySnapshot> {
+    pub async fn telemetry(&self, now: OffsetDateTime) -> Result<TelemetrySnapshot> {
         let mut tx = self.pool.begin().await.map_err(db)?;
         sqlx::query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
             .execute(&mut *tx)

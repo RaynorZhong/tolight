@@ -7,9 +7,9 @@ use std::{
 const LOGICAL_BACKUP: &str = "tolight-20000101T000000Z-00000000000000000000000000000001.dump";
 fn write_logical_backup(directory: &Path, created: u64) {
     std::fs::write(directory.join(LOGICAL_BACKUP), b"PGDMPfixture").unwrap();
-    let created = chrono::DateTime::from_timestamp(created as i64, 0)
-        .unwrap()
-        .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let created = tolight_core::datetime::utc_seconds(
+        time::OffsetDateTime::from_unix_timestamp(created as i64).unwrap(),
+    );
     let metadata = serde_json::json!({"schema":"tolight-backup/1","file":LOGICAL_BACKUP,"created_at":created,"sha256":"d3f6f2a2fda39b3e845c096384e9854aac323b2ed8e847de65332ed32b3532be","size":12,"format":"custom","compression":"none"});
     std::fs::write(
         directory.join(format!("{LOGICAL_BACKUP}.meta.json")),
@@ -731,9 +731,9 @@ async fn physical_backup_age_requires_a_complete_pg18_marker_and_matching_manife
     std::fs::create_dir_all(base.join("data")).unwrap();
     std::fs::write(base.join("data/PG_VERSION"), "18\n").unwrap();
     std::fs::write(base.join("data/backup_manifest"), "{}").unwrap();
-    let completed = chrono::DateTime::from_timestamp(now as i64, 0)
-        .unwrap()
-        .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let completed = tolight_core::datetime::utc_seconds(
+        time::OffsetDateTime::from_unix_timestamp(now as i64).unwrap(),
+    );
     let valid = serde_json::json!({"schema":"tolight-base-backup/1","status":"passed","completed_at":completed,"postgres_major":18,"data":"data","manifest_sha256":"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a","system_identifier":"1234567890"});
     let write = |value: &Value| {
         std::fs::write(base.join("backup.json"), serde_json::to_vec(value).unwrap()).unwrap()

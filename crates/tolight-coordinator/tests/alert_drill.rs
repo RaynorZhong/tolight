@@ -1,9 +1,10 @@
+use tolight_core::datetime::TimestampExt;
 mod support;
-use chrono::{Duration as ChronoDuration, Utc};
 use serde_json::{Value, json};
 use sqlx::PgPool;
 use std::path::{Path, PathBuf};
 use support::fake_agent::{FakeAgent, TestApp};
+use time::{Duration as TimeDuration, OffsetDateTime};
 use tolight_coordinator::{metrics, operator};
 
 struct Listener(tokio::task::JoinHandle<()>);
@@ -102,7 +103,7 @@ async fn actual_metrics_notify_local_sink_and_operator_mute_preserves_reading_an
             .join(format!("{backup_name}.meta.json")),
         serde_json::to_vec(&json!({
             "schema":"tolight-backup/1", "file":backup_name,
-            "created_at":Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+            "created_at":tolight_core::datetime::utc_seconds(OffsetDateTime::now_utc()),
             "sha256":"d3f6f2a2fda39b3e845c096384e9854aac323b2ed8e847de65332ed32b3532be",
             "size":12, "format":"custom", "compression":"none", "synthetic_test_fixture":true,
         }))
@@ -149,7 +150,7 @@ async fn actual_metrics_notify_local_sink_and_operator_mute_preserves_reading_an
                 "self",
                 "",
                 vec![],
-                Utc::now().timestamp() - 1000,
+                OffsetDateTime::now_utc().unix_timestamp() - 1000,
                 &[],
             )
             .await;
@@ -225,7 +226,7 @@ async fn actual_metrics_notify_local_sink_and_operator_mute_preserves_reading_an
     assert!(!logs.contains("rejected-fixture-marker"));
     assert!(!logs.contains("owner@example.invalid"));
     assert!(!logs.contains(&alice.key()));
-    let report = json!({"schema":"tolight-alert-drill/1","scope":"isolated real HTTP/PostgreSQL/metrics with local JSONL sink; qualified test identities","recorded_at":Utc::now().to_rfc3339(),"thresholds":{"message_limit_per_hour":1,"sanitizer_rejections_per_hour":1,"clock_skew_per_hour":1,"messages_per_hour":1},"actual_counter_and_gauge_alerts":raised["conditions"],"sink_notifications":notes.len(),"duplicate_notifications":0,"action":"local sink observed then production operator::mute handler called","human_operator_delivery":false,"external_notifications":false,"mute_state":"infinite","post_mute_status":rejected.status,"attempts_before":attempts_before,"attempts_after":attempts_after,"muted_reads_succeeded":true,"other_agent_send_status":201,"service_log_sensitive_values_absent":true,"process_cleanup":"RAII abort of fixture participant and metrics listeners at test exit","evidence_directory":directory});
+    let report = json!({"schema":"tolight-alert-drill/1","scope":"isolated real HTTP/PostgreSQL/metrics with local JSONL sink; qualified test identities","recorded_at":OffsetDateTime::now_utc().to_rfc3339(),"thresholds":{"message_limit_per_hour":1,"sanitizer_rejections_per_hour":1,"clock_skew_per_hour":1,"messages_per_hour":1},"actual_counter_and_gauge_alerts":raised["conditions"],"sink_notifications":notes.len(),"duplicate_notifications":0,"action":"local sink observed then production operator::mute handler called","human_operator_delivery":false,"external_notifications":false,"mute_state":"infinite","post_mute_status":rejected.status,"attempts_before":attempts_before,"attempts_after":attempts_after,"muted_reads_succeeded":true,"other_agent_send_status":201,"service_log_sensitive_values_absent":true,"process_cleanup":"RAII abort of fixture participant and metrics listeners at test exit","evidence_directory":directory});
     private_write(
         &directory.join("report.json"),
         serde_json::to_vec_pretty(&report).unwrap(),
@@ -265,14 +266,14 @@ async fn six_reason_rejection_gauge_is_exact_at_the_one_hour_boundary_and_retain
         let result = alice.request(&app, "POST", "messages", "", Some(json!({"client_message_id":format!("reason-{reason}"),"text":text,"mentions":mentions}))).await;
         assert_eq!(result.status, 422, "{reason}: {}", result.body);
     }
-    let now = Utc::now();
+    let now = OffsetDateTime::now_utc();
     for (reason, time) in [
-        ("empty", now - ChronoDuration::hours(1)),
+        ("empty", now - TimeDuration::hours(1)),
         (
             "too_long",
-            now - ChronoDuration::hours(1) + ChronoDuration::microseconds(1),
+            now - TimeDuration::hours(1) + TimeDuration::microseconds(1),
         ),
-        ("invalid_chars", now - ChronoDuration::hours(2)),
+        ("invalid_chars", now - TimeDuration::hours(2)),
     ] {
         sqlx::query(
             "UPDATE message_attempts SET created_at=$1 WHERE agent_id='alice' AND reason_code=$2",

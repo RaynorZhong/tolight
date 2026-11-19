@@ -5,6 +5,7 @@ use std::{
 };
 use tolight_coordinator::publisher::{self, PublishError};
 use tolight_core::config::Config;
+use tolight_core::datetime::TimestampExt;
 
 struct Fixture {
     _temporary: tempfile::TempDir,
@@ -76,8 +77,9 @@ impl Fixture {
     fn security(&self) -> (PathBuf, Vec<u8>) {
         let path = self.source.join(".well-known/security.txt");
         fs::create_dir_all(path.parent().unwrap()).unwrap();
-        let expires = (chrono::Utc::now() + chrono::Duration::days(180))
-            .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+        let expires = tolight_core::datetime::utc_seconds(
+            time::OffsetDateTime::now_utc() + time::Duration::days(180),
+        );
         let bytes = format!("# Synthetic local test channel; no mail is sent.\nContact: mailto:reports@tolight.test\nExpires: {expires}\nCanonical: https://tolight.test/.well-known/security.txt\nPreferred-Languages: zh, en\n").into_bytes();
         fs::write(&path, &bytes).unwrap();
         fs::write(self.source.parent().unwrap().join("SECURITY.md"), "# Synthetic policy\nOnly a test fixture, not a project contact.\n\n```text\nContact: mailto:reports@tolight.test\n```\n").unwrap();
@@ -113,7 +115,7 @@ async fn security_report_assets_are_optional_exact_and_withdraw_stale_channels_w
         metadata.canonical,
         ["https://tolight.test/.well-known/security.txt"]
     );
-    assert!(metadata.expires > chrono::Utc::now());
+    assert!(metadata.expires > time::OffsetDateTime::now_utc());
     fixture.install().await.unwrap();
     let installed = fixture.config.public.dir.join(".well-known/security.txt");
     assert_eq!(fs::read(&installed).unwrap(), bytes);
@@ -139,7 +141,7 @@ async fn security_format_expiry_and_policy_disagreement_fail_before_any_asset_ch
     let (source, valid) = fixture.security();
     fixture.install().await.unwrap();
     let original = tree(&fixture.config.public.dir);
-    let expires = (chrono::Utc::now() + chrono::Duration::days(30)).to_rfc3339();
+    let expires = (time::OffsetDateTime::now_utc() + time::Duration::days(30)).to_rfc3339();
     for invalid in [
         format!("Expires: {expires}\n"),
         "Contact: mailto:reports@tolight.test\n".into(),

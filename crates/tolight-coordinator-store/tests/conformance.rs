@@ -1,11 +1,11 @@
 mod support;
-use chrono::{Duration, Utc};
 use sqlx::PgPool;
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
 };
 use support::*;
+use time::{Duration, OffsetDateTime};
 use tolight_coordinator_store::{Store, conformance::ConformanceRun};
 use tolight_core::{
     models::{AgentContext, ApiError},
@@ -32,7 +32,7 @@ async fn sessions_are_serialized_per_identity_and_only_passage_changes_review_re
                     if data.current().is_none() {
                         data.runs.push(ConformanceRun::candidate(
                             &context.agent_id,
-                            Utc::now(),
+                            OffsetDateTime::now_utc(),
                             data.runs.len() + 1,
                         ));
                     }
@@ -49,7 +49,10 @@ async fn sessions_are_serialized_per_identity_and_only_passage_changes_review_re
     assert_eq!(ids.len(), 1);
     assert_eq!(count(&store, "conformance_runs").await, 1);
     assert_eq!(store.review("alice").await.unwrap().application_revision, 1);
-    let limited = chrono::DateTime::from_timestamp_micros(Utc::now().timestamp_micros()).unwrap();
+    let limited = OffsetDateTime::now_utc();
+    let limited = limited
+        .replace_nanosecond(limited.microsecond() * 1_000)
+        .unwrap();
     let rejected: Result<(), ApiError> = store
         .conformance_transaction(&context, |data| {
             data.current_mut().unwrap().limited_at = Some(limited);
@@ -119,7 +122,7 @@ async fn old_key_cannot_advance_or_timeout_a_session_after_waiting_for_the_agent
         .conformance_transaction(&context, |data| {
             data.runs.push(ConformanceRun::candidate(
                 "alice",
-                Utc::now() - Duration::hours(1),
+                OffsetDateTime::now_utc() - Duration::hours(1),
                 1,
             ))
         })
@@ -144,7 +147,7 @@ async fn old_key_cannot_advance_or_timeout_a_session_after_waiting_for_the_agent
         old.conformance_transaction(&old_context, |data| {
             observed.store(true, Ordering::SeqCst);
             let run = data.current_mut().unwrap();
-            run.finished_at = Some(Utc::now());
+            run.finished_at = Some(OffsetDateTime::now_utc());
             run.passed = Some(false);
             run.failure_reason = Some("no_reply".into());
         })
@@ -177,7 +180,7 @@ async fn approval_requires_both_pass_time_and_the_current_suite_version(pool: Pg
     for suite in [None, Some("old")] {
         store
             .conformance_transaction(&context, |data| {
-                data.agent.conformance_passed_at = Some(Utc::now());
+                data.agent.conformance_passed_at = Some(OffsetDateTime::now_utc());
                 data.agent.conformance_suite_version = suite.map(str::to_owned);
             })
             .await

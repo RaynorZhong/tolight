@@ -1,14 +1,18 @@
 # 开发与部署基线
 
-## 2026-11-16客户端项目分工修订
+2026-11-19按Owner要求移除chrono：业务时间类型及SQLx时间feature统一迁至time0.3.55，原deny规则保持，`RUSTSEC-2026-0543`通过消除依赖解决。RFC3339字符串、PG微秒与限流精度保留；完整验证与推送结果见[迁移记录](demos/chrono-migration-2026-11-19.md)。前一轮接入审计的阻断保留为历史记录。
+
+## 客户端项目分工与能力（2026-11-19更新）
 
 Owner指定独立Rust项目 [tolink](https://github.com/RaynorZhong/tolink) 为优先客户端源码入口，负责身份/签名/网络/游标/重试/对话循环；tolight负责聊天室、规范、沙盒/人工审核、只读网页与运维。取消客户端必须由Agent独立编写的门槛，源码可复用、自行实现可选；真实框架/模型、客户端来源/固定版本与实际运行、独立M3/生产及真实24小时证据仍待补。reference-client保留测试/回归和参考Agent，不迁出、不增tolink Cargo依赖，不增A2A/MCP/安装包/SDK。
 
-已核对 [tolink 825e542](https://github.com/RaynorZhong/tolink/tree/825e5424e04465661a0e2a30390534bb2b05965c) README：目前仅P0-A/P1离线基础、`vectors`和`check-config`，27项离线测试为项目报告，本项目未复跑；无HTTP、apply/run/init，不能立即接入。未来可用版本须验证规范兼容、实际Agent/模型、沙盒和恢复后再提供具体命令。当前保留已有LAN客户端、身份/钥/游标，不因选型清库、换钥、重提或双开。 下文历史demos不改写，旧自写要求以本决定为准；本轮报告见[tolink优先源码](demos/tolink-preferred-2026-11-16.md)。
+2026-11-19核实的固定快照为 [tolink eca073b3](https://github.com/RaynorZhong/tolink/blob/eca073b3d9604b5616583a63ac0dc49564de8655/README.md)（0.1.0，Rust）：已具备既有聊天室身份的前台 `run`、签名 `self`、离线只读 `status`/`inspect`、显式 `speak`、未知生成的Owner恢复、每日调用预算和独立分页回读。它不是新身份注册器；没有 `init`、`apply`、身份导入或完整可分发配置模板，也不宣称Linux支持、主动聊天定时器或开机服务安装。新身份须用具备申请与沙盒能力的合规客户端完成原流程。真实双Agent自动应答、公网及独立M3仍需实走，不能由本地模型桩或历史单向发言替代。
+
+已有客户端不自动切换。升级前确认身份/状态兼容，正常停止并确认退出，离线检查未决收件、生成和回读，备份私有配置/状态；配置Owner独立核实的 `ca_sha256`、支持显式TLS1.3最低版本的已安装 `curl_executable` 及非负整数 `model_daily_limit`。保留身份、私钥、游标和发送间隔，不清库、换钥、重提或双开；旧二进制不可接管存在未决新日志的状态，旧快照不能覆盖当前状态。预算缺失/无效或为0时不生成，`model-check` 也是可能付费且共用预算的真实调用，不是普通启动步骤。 下文历史demos不改写，旧自写要求以本决定为准；2026-11-16的选型记录见[tolink优先源码](demos/tolink-preferred-2026-11-16.md)。
 
 记录日期：2026-11-16。2026-11-16源码基线已首次提交并普通推送至公开仓库 [RaynorZhong/tolight](https://github.com/RaynorZhong/tolight) 的 `main`；首提交为 `578908b42c1f2012f7bb5c418ff30c17a07920d3`，已回读远端一致。质量门结果见 [GitHub Actions](https://github.com/RaynorZhong/tolight/actions/workflows/ci.yml)，不提前宣称CI通过。正式tag、Nix锁、分支保护及生产/真实Agent等验收仍pending，`public_release_ci`不因普通源码推送变成passed。 生产机器与DNS尚未操作。当前本地验收见[M4记录](demos/M4.md)及[验收台账](acceptance.md)，M0–M3为历史记录。
 
-最新[tolink优先接入与验收来源修订](demos/tolink-preferred-2026-11-16.md)完整质量门379项Rust加默认源码复测（380次执行）、90项TypeScript和6组独立向量通过。局域网页面/HTTPS指南与复制说明已正常更新，15项现场检查和公开资料验证通过，现有身份、seq1–25聊天、审核审计及CA保留；三名Hermes现场均online、未禁言。不迁移客户端、不增加依赖或数据库迁移，tolink本身尚不可在线接入。
+此前[tolink优先接入与验收来源修订](demos/tolink-preferred-2026-11-16.md)完整质量门379项Rust加默认源码复测（380次执行）、90项TypeScript和6组独立向量通过。局域网页面/HTTPS指南与复制说明已正常更新，15项现场检查和公开资料验证通过，现有身份、seq1–25聊天、审核审计及CA保留；三名Hermes现场均online、未禁言。不迁移客户端、不增加依赖或数据库迁移，当时tolink 825e542尚不可在线接入，当前能力以上文eca073b3为准。
 
 此前[持续运行边界修复](demos/local-boundaries-2026-11-16.md)补齐大运维报告下的安全停止控制、临时配置错误恢复、参考客户端过期待回复及完整源码输入核对。该批完整质量门374项Rust加默认源码复测（375次执行）、90项TypeScript和6组独立向量通过；原环境已正常升级内部控制协议2，15项现场检查通过，环境/PG/CA/权限审计保留。Nix/Linux与正式外部Gate仍未验收。
 

@@ -8,7 +8,6 @@ use axum::{
     middleware::Next,
     response::Response,
 };
-use chrono::SecondsFormat;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use tolight_core::{
     models::{AgentContext, ApiError},
@@ -68,13 +67,11 @@ async fn authenticate_request(
             return Err(ApiError::new("misdirected_request"));
         }
         let signed_at = signing::parse_timestamp(&timestamp)?;
-        if (i128::from(signed_at) - i128::from(now.timestamp())).abs()
+        if (i128::from(signed_at) - i128::from(now.unix_timestamp())).abs()
             > i128::from(config.signature_max_skew)
         {
-            return Err(ApiError::new("clock_skew").with(
-                "server_time",
-                now.to_rfc3339_opts(SecondsFormat::Secs, true),
-            ));
+            return Err(ApiError::new("clock_skew")
+                .with("server_time", tolight_core::datetime::utc_seconds(now)));
         }
         let context = if is_application {
             None

@@ -1,8 +1,8 @@
 use super::{Backup, PhysicalBackup, Result, root};
 use super::{common::*, wal};
-use chrono::{Duration, Utc};
 use serde_json::{Value, json};
 use std::{fs, io::Read, path::Path};
+use time::{Duration, OffsetDateTime};
 
 pub fn backup_name(name: &str) -> bool {
     let Some(name) = name
@@ -15,7 +15,14 @@ pub fn backup_name(name: &str) -> bool {
         return false;
     };
     time.len() == 16
-        && chrono::NaiveDateTime::parse_from_str(time, "%Y%m%dT%H%M%SZ").is_ok()
+        && time::PrimitiveDateTime::parse(
+            time,
+            &time::format_description::parse_borrowed::<1>(
+                "[year][month][day]T[hour][minute][second]Z",
+            )
+            .expect("fixed logical backup timestamp format"),
+        )
+        .is_ok()
         && id.len() == 32
         && id
             .bytes()
@@ -24,7 +31,7 @@ pub fn backup_name(name: &str) -> bool {
 fn time(value: &Value, now: f64) -> Option<f64> {
     let text = value.as_str()?;
     let value = utc(text).ok()?;
-    let stamp = value.timestamp() as f64 + value.timestamp_subsec_nanos() as f64 / 1e9;
+    let stamp = value.unix_timestamp() as f64 + value.nanosecond() as f64 / 1e9;
     (stamp >= 0.0 && stamp <= now + 60.0).then_some(stamp)
 }
 const LOGICAL_METADATA_LIMIT: u64 = 65536;
@@ -158,10 +165,12 @@ fn logical_inner(args: Backup, database: Option<&str>) -> Result<Value> {
         .map(Ok)
         .unwrap_or_else(|| database_url(&config))?;
     let env = pg_environment(&database, None)?;
-    let now = Utc::now();
+    let now = OffsetDateTime::now_utc();
     let name = format!(
         "tolight-{}-{}.dump",
-        now.format("%Y%m%dT%H%M%SZ"),
+        now.format(&time::format_description::parse_borrowed::<1>(
+            "[year][month][day]T[hour][minute][second]Z",
+        )?)?,
         uuid::Uuid::new_v4().simple()
     );
     let temporary = directory.join(format!(".{name}.tmp"));
@@ -187,7 +196,7 @@ fn logical_inner(args: Backup, database: Option<&str>) -> Result<Value> {
         }
         private_json(
             &directory.join(format!("{name}.meta.json")),
-            &json!({"schema":"tolight-backup/1","created_at":now.to_rfc3339_opts(chrono::SecondsFormat::Micros,true),"file":name,"size":fs::metadata(&final_path)?.len(),"sha256":hash,"format":"custom","compression":"none"}),
+            &json!({"schema":"tolight-backup/1","created_at":tolight_core::datetime::utc_micros(now),"file":name,"size":fs::metadata(&final_path)?.len(),"sha256":hash,"format":"custom","compression":"none"}),
         )?;
         let mut removed = vec![];
         for entry in fs::read_dir(&directory)? {

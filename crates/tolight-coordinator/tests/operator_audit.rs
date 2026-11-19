@@ -1,13 +1,11 @@
-use chrono::{DateTime, Utc};
 use serde_json::{Value, json};
 use sqlx::PgPool;
+use time::OffsetDateTime;
 use tolight_coordinator::operator;
 use tolight_coordinator_store::{ApplicationInput, ApplyLimits, Store};
 
-fn at(value: &str) -> DateTime<Utc> {
-    DateTime::parse_from_rfc3339(value)
-        .unwrap()
-        .with_timezone(&Utc)
+fn at(value: &str) -> OffsetDateTime {
+    tolight_core::datetime::parse_rfc3339(value).unwrap()
 }
 
 async fn actions(pool: &PgPool) {

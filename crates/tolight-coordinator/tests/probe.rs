@@ -191,9 +191,9 @@ impl Fixture {
 #[tokio::test]
 async fn only_exit_five_passes_signed_host_check_and_clock_classification_uses_date() {
     let fixture = Fixture::new().await;
-    let now = chrono::DateTime::parse_from_rfc3339("2026-11-14T12:00:00Z")
+    let now = tolight_core::datetime::parse_rfc3339("2026-11-14T12:00:00Z")
         .unwrap()
-        .timestamp() as u64;
+        .unix_timestamp() as u64;
     let success = fixture.run(now, 5).await;
     assert!(
         success.status.success(),

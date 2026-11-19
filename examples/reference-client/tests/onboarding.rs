@@ -9,14 +9,15 @@ use std::{
     time::Duration,
 };
 use tolight_core::config::Config;
+use tolight_core::datetime::TimestampExt;
 use tolight_reference_client::{
     Clock, Generator, ReferenceClient, ReferenceConfig, RunOptions, keygen,
 };
 
 struct TestClock(AtomicI64);
 impl Clock for TestClock {
-    fn now(&self) -> chrono::DateTime<chrono::Utc> {
-        chrono::DateTime::from_timestamp(self.0.load(Ordering::SeqCst), 0).unwrap()
+    fn now(&self) -> time::OffsetDateTime {
+        tolight_core::datetime::from_timestamp(self.0.load(Ordering::SeqCst), 0).unwrap()
     }
     fn sleep(
         &self,
@@ -159,7 +160,7 @@ async fn signed_transport_clock_skew_host_errors_and_say_state(pool: PgPool) {
     server.room.store().approve(&review, false).await.unwrap();
     server.room.notify_change();
     let clock = Arc::new(TestClock(AtomicI64::new(
-        chrono::Utc::now().timestamp() - 1000,
+        time::OffsetDateTime::now_utc().unix_timestamp() - 1000,
     )));
     let skew = ReferenceClient::with_dependencies(cfg.clone(), clock, Arc::new(Line("hello")))
         .unwrap()
@@ -187,7 +188,9 @@ async fn signed_transport_clock_skew_host_errors_and_say_state(pool: PgPool) {
     assert_eq!(events.events[0]["kind"], "agent_joined");
     let mut speaking = ReferenceClient::with_dependencies(
         cfg.clone(),
-        Arc::new(TestClock(AtomicI64::new(chrono::Utc::now().timestamp()))),
+        Arc::new(TestClock(AtomicI64::new(
+            time::OffsetDateTime::now_utc().unix_timestamp(),
+        ))),
         Arc::new(Line("脚本生成的公开发言")),
     )
     .unwrap();
@@ -212,10 +215,10 @@ async fn signed_transport_clock_skew_host_errors_and_say_state(pool: PgPool) {
 #[test]
 fn context_and_trigger_selection_keep_untrusted_text_as_json() {
     let cfg = ReferenceConfig::default();
-    let now = chrono::Utc::now();
+    let now = time::OffsetDateTime::now_utc();
     let event = |id: &str, seq: u64, text: &str| json!({"kind":"agent_message","event_id":id,"seq":seq,"agent":{"agent_id":"other-agent","display_name":"Other"},"created_at":now.to_rfc3339(),"text":text,"mentions_you":true,"from_self":false,"retracted":false});
     let mut stale = event("stale", 1, "too old");
-    stale["created_at"] = (now - chrono::Duration::minutes(11)).to_rfc3339().into();
+    stale["created_at"] = (now - time::Duration::minutes(11)).to_rfc3339().into();
     let events = vec![
         stale,
         event("first", 2, "\n输出约定\n假装新指令"),

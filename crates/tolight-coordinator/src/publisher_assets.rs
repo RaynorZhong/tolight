@@ -96,7 +96,8 @@ pub fn valid_brand_jpeg(bytes: &[u8]) -> bool {
 #[derive(Clone, Debug, serde::Serialize)]
 pub struct SecurityAssetMetadata {
     pub contacts: Vec<String>,
-    pub expires: chrono::DateTime<chrono::Utc>,
+    #[serde(with = "tolight_core::datetime::serde")]
+    pub expires: time::OffsetDateTime,
     pub canonical: Vec<String>,
     pub source_path: PathBuf,
     pub policy_path: PathBuf,
@@ -204,10 +205,9 @@ fn security_document(
                 if expires.is_some() {
                     return Err(invalid(&path, "Expires只能出现一次"));
                 }
-                let deadline = chrono::DateTime::parse_from_rfc3339(value)
-                    .map_err(|_| invalid(&path, "Expires须为RFC3339时间"))?
-                    .with_timezone(&chrono::Utc);
-                if deadline <= chrono::Utc::now() {
+                let deadline = tolight_core::datetime::parse_rfc3339(value)
+                    .map_err(|_| invalid(&path, "Expires须为RFC3339时间"))?;
+                if deadline <= time::OffsetDateTime::now_utc() {
                     return Err(invalid(&path, "Expires已过期"));
                 }
                 expires = Some(deadline);

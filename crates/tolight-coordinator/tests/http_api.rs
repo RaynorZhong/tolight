@@ -1,8 +1,8 @@
 mod support;
-use chrono::Utc;
 use serde_json::json;
 use sqlx::PgPool;
 use support::fake_agent::{FakeAgent, TestApp};
+use time::OffsetDateTime;
 
 #[sqlx::test(migrations = "../tolight-coordinator-store/migrations")]
 async fn malformed_requests_use_the_uniform_error_mapping(pool: PgPool) {
@@ -36,7 +36,15 @@ async fn malformed_requests_use_the_uniform_error_mapping(pool: PgPool) {
         ("GET", "events", "limit=1&limit=2", vec![], 400),
     ] {
         let response = alice
-            .raw(&app, method, path, query, body, Utc::now().timestamp(), &[])
+            .raw(
+                &app,
+                method,
+                path,
+                query,
+                body,
+                OffsetDateTime::now_utc().unix_timestamp(),
+                &[],
+            )
             .await;
         assert_eq!(
             response.status, status,
@@ -121,14 +129,14 @@ async fn a_parked_request_does_not_recheck_its_original_signature_timestamp(pool
         Arc,
         atomic::{AtomicI64, Ordering},
     };
-    let began = Utc::now().timestamp();
+    let began = OffsetDateTime::now_utc().unix_timestamp();
     let seconds = Arc::new(AtomicI64::new(began));
     let injected = seconds.clone();
     let app = TestApp::configured_clock(
         pool,
         |config| config.signature_max_skew = 30,
         Arc::new(move || {
-            chrono::DateTime::from_timestamp(injected.load(Ordering::SeqCst), 0).unwrap()
+            time::OffsetDateTime::from_unix_timestamp(injected.load(Ordering::SeqCst)).unwrap()
         }),
     )
     .await;

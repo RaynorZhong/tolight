@@ -6,7 +6,6 @@ use axum::{
     response::{IntoResponse, Response},
     routing::any,
 };
-use chrono::{DateTime, Utc};
 use serde_json::{Value, json};
 use std::{
     collections::VecDeque,
@@ -18,7 +17,9 @@ use std::{
     },
     time::Duration,
 };
+use time::OffsetDateTime;
 use tokio::sync::{Notify, watch};
+use tolight_core::datetime::{self, TimestampExt};
 use tolight_reference_client::{
     Clock, Generator, LocalState, PendingCall, ReferenceClient, ReferenceConfig, RunOptions, keygen,
 };
@@ -30,14 +31,14 @@ struct Time {
 impl Time {
     fn new() -> Arc<Self> {
         Arc::new(Self {
-            now: AtomicI64::new(Utc::now().timestamp()),
+            now: AtomicI64::new(OffsetDateTime::now_utc().unix_timestamp()),
             waits: Mutex::new(Vec::new()),
         })
     }
 }
 impl Clock for Time {
-    fn now(&self) -> DateTime<Utc> {
-        DateTime::from_timestamp(self.now.load(Ordering::SeqCst), 0).unwrap()
+    fn now(&self) -> OffsetDateTime {
+        datetime::from_timestamp(self.now.load(Ordering::SeqCst), 0).unwrap()
     }
     fn sleep(&self, duration: Duration) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
         self.waits.lock().unwrap().push(duration.as_millis() as u64);
@@ -89,9 +90,9 @@ struct Peer {
     gets: Arc<AtomicUsize>,
     events: Value,
     clock: Arc<Mutex<Option<Arc<dyn Clock>>>>,
-    post_times: Arc<Mutex<Vec<DateTime<Utc>>>>,
+    post_times: Arc<Mutex<Vec<OffsetDateTime>>>,
     self_plans: Arc<Mutex<VecDeque<ResponsePlan>>>,
-    request_times: Arc<Mutex<Vec<DateTime<Utc>>>>,
+    request_times: Arc<Mutex<Vec<OffsetDateTime>>>,
     event_plans: Arc<Mutex<VecDeque<Value>>>,
 }
 async fn handle(
@@ -345,7 +346,7 @@ async fn poll_results_recheck_changed_pause_and_mute_states_before_dropping_new_
 async fn restriction_refresh_rate_limit_preserves_pending_reply_id_and_waits_before_generation() {
     let temp = tempfile::tempdir().unwrap();
     let (url, peer, server) = peer(page(vec![]), vec![]).await;
-    let started = DateTime::from_timestamp(Utc::now().timestamp(), 0).unwrap();
+    let started = datetime::from_timestamp(OffsetDateTime::now_utc().unix_timestamp(), 0).unwrap();
     let waiting = Arc::new(Notify::new());
     let clock = Arc::new(RetryWait {
         now: started,
@@ -397,7 +398,7 @@ async fn restriction_refresh_rate_limit_preserves_pending_reply_id_and_waits_bef
 
     let (url, peer, server) = self::peer(page(vec![]), vec![]).await;
     let clock = Time::new();
-    clock.now.store(started.timestamp(), Ordering::SeqCst);
+    clock.now.store(started.unix_timestamp(), Ordering::SeqCst);
     *peer.clock.lock().unwrap() = Some(clock.clone());
     let mut cfg = cfg;
     cfg.base_url = url;
@@ -424,7 +425,7 @@ async fn restriction_refresh_rate_limit_preserves_pending_reply_id_and_waits_bef
     assert!(clock.waits.lock().unwrap().contains(&7000));
     let times = peer.request_times.lock().unwrap();
     assert!(!times.is_empty());
-    assert!(times.iter().all(|at| (*at - started).num_seconds() >= 7));
+    assert!(times.iter().all(|at| (*at - started).whole_seconds() >= 7));
     let saved = LocalState::load(&cfg.state_path).unwrap();
     assert_eq!(saved.calls, 1);
     assert!(saved.pending.is_none());
@@ -515,7 +516,7 @@ async fn reply_message_limit_waits_and_retries_while_proactive_is_discarded() {
             if kind == "reply" { 2 } else { 1 }
         );
         assert!(client.state.pending.is_none());
-        assert!(time.now().timestamp() >= client.state.cooldown_until.unwrap());
+        assert!(time.now().unix_timestamp() >= client.state.cooldown_until.unwrap());
         server.abort();
     }
 }
@@ -569,6 +570,53 @@ async fn nonretryable_content_pause_mute_and_redirect_do_not_repost() {
         assert_eq!(peer.posts.lock().unwrap().len(), 1);
         server.abort();
     }
+}
+
+#[tokio::test]
+async fn daily_budget_uses_utc_even_when_a_clock_has_a_local_offset() {
+    struct OffsetClock(Arc<Time>);
+    impl Clock for OffsetClock {
+        fn now(&self) -> OffsetDateTime {
+            self.0
+                .now()
+                .to_offset(time::UtcOffset::from_hms(-1, 0, 0).unwrap())
+        }
+        fn sleep(&self, duration: Duration) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
+            self.0.sleep(duration)
+        }
+    }
+    let temp = tempfile::tempdir().unwrap();
+    let (url, peer, server) = peer(page(vec![]), vec![]).await;
+    let mut cfg = config(temp.path(), url);
+    cfg.daily_call_budget = 2;
+    let time = Time::new();
+    let midnight = datetime::parse_rfc3339("2026-11-19T00:30:00Z")
+        .unwrap()
+        .unix_timestamp();
+    time.now.store(midnight, Ordering::SeqCst);
+    let generator = Gen::line("[SILENT]");
+    let mut client = ReferenceClient::with_dependencies(
+        cfg,
+        Arc::new(OffsetClock(time.clone())),
+        generator.clone(),
+    )
+    .unwrap();
+    client.state.budget_day = "2026-11-19".into();
+    client.state.calls = 2;
+    assert!(!client.say(None).await.unwrap());
+    assert_eq!(generator.calls.load(Ordering::SeqCst), 0);
+    // Local midnight alone must not refill a UTC day's exhausted budget.
+    time.now.fetch_add(3600, Ordering::SeqCst);
+    assert!(!client.say(None).await.unwrap());
+    assert_eq!(generator.calls.load(Ordering::SeqCst), 0);
+    // At the next UTC date the local clock still reports the previous date.
+    time.now.store(midnight + 86400, Ordering::SeqCst);
+    assert!(!client.say(None).await.unwrap());
+    assert_eq!(client.state.budget_day, "2026-11-20");
+    assert_eq!(client.state.calls, 1);
+    assert_eq!(generator.calls.load(Ordering::SeqCst), 1);
+    assert!(peer.posts.lock().unwrap().is_empty());
+    server.abort();
 }
 
 #[tokio::test]
@@ -659,7 +707,7 @@ async fn empty_and_failed_generation_consume_budget_without_any_post() {
 #[tokio::test]
 async fn replayed_page_filters_processed_triggers_and_ignores_unknown_self_and_retracted_events() {
     // The fake clock and protocol event timestamps both use whole seconds.
-    let now = DateTime::from_timestamp(Utc::now().timestamp(), 0).unwrap();
+    let now = datetime::from_timestamp(OffsetDateTime::now_utc().unix_timestamp(), 0).unwrap();
     let base = json!({"seq":1,"event_id":"old","kind":"agent_message","mentions_you":true,"from_self":false,"retracted":false,"created_at":now.to_rfc3339(),"text":"old"});
     let mut fresh = base.clone();
     fresh["seq"] = 2.into();
@@ -806,11 +854,11 @@ async fn saved_sandbox_output_is_discarded_after_approval_instead_of_published()
 }
 
 struct RetryWait {
-    now: DateTime<Utc>,
+    now: OffsetDateTime,
     waiting: Arc<Notify>,
 }
 impl Clock for RetryWait {
-    fn now(&self) -> DateTime<Utc> {
+    fn now(&self) -> OffsetDateTime {
         self.now
     }
     fn sleep(&self, _duration: Duration) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
@@ -845,7 +893,7 @@ async fn normal_stop_does_not_wait_a_whole_day_retry_window_or_advance_cursor() 
     let mut client = ReferenceClient::with_dependencies(
         cfg.clone(),
         Arc::new(RetryWait {
-            now: Utc::now(),
+            now: OffsetDateTime::now_utc(),
             waiting: waiting.clone(),
         }),
         generator.clone(),
@@ -876,8 +924,8 @@ struct MillisecondTime {
     now: AtomicI64,
 }
 impl Clock for MillisecondTime {
-    fn now(&self) -> DateTime<Utc> {
-        DateTime::from_timestamp_millis(self.now.load(Ordering::SeqCst)).unwrap()
+    fn now(&self) -> OffsetDateTime {
+        datetime::from_timestamp_millis(self.now.load(Ordering::SeqCst)).unwrap()
     }
     fn sleep(&self, duration: Duration) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
         self.now
@@ -905,7 +953,7 @@ async fn restart_preserves_the_full_retry_after_from_a_fractional_second() {
     }
     .save(&cfg.state_path)
     .unwrap();
-    let received_at = DateTime::from_timestamp(1_800_000_000, 900_000_000).unwrap();
+    let received_at = datetime::from_timestamp(1_800_000_000, 900_000_000).unwrap();
     let waiting = Arc::new(Notify::new());
     let mut client = ReferenceClient::with_dependencies(
         cfg.clone(),
@@ -945,7 +993,7 @@ async fn restart_preserves_the_full_retry_after_from_a_fractional_second() {
         .await
         .unwrap();
     assert_eq!(peer.posts.lock().unwrap().len(), 2);
-    assert!(time.now() >= received_at + chrono::Duration::seconds(20));
+    assert!(time.now() >= received_at + time::Duration::seconds(20));
     server.abort();
 }
 
@@ -980,7 +1028,7 @@ async fn fractional_speaking_interval_survives_restart_and_allows_its_exact_boun
     assert!(client.say(None).await.unwrap());
     let posts = peer.post_times.lock().unwrap();
     assert_eq!(posts.len(), 2);
-    assert_eq!(posts[1] - posts[0], chrono::Duration::seconds(30));
+    assert_eq!(posts[1] - posts[0], time::Duration::seconds(30));
     server.abort();
 }
 
@@ -994,10 +1042,10 @@ async fn persisted_output_and_message_limit_retry_respect_fractional_speaking_sp
     .await;
     let mut cfg = config(temp.path(), url);
     cfg.min_speaking_interval_seconds = 30;
-    let previous = DateTime::from_timestamp(1_800_000_000, 900_000_000).unwrap();
+    let previous = datetime::from_timestamp(1_800_000_000, 900_000_000).unwrap();
     LocalState {
-        last_sent_at: Some(previous.timestamp()),
-        last_sent_subsec_nanos: Some(previous.timestamp_subsec_nanos()),
+        last_sent_at: Some(previous.unix_timestamp()),
+        last_sent_subsec_nanos: Some(previous.nanosecond()),
         pending: Some(pending("reply")),
         ..Default::default()
     }
@@ -1022,8 +1070,8 @@ async fn persisted_output_and_message_limit_retry_respect_fractional_speaking_sp
         .unwrap();
     let times = peer.post_times.lock().unwrap();
     assert_eq!(times.len(), 2);
-    assert_eq!(times[0] - previous, chrono::Duration::seconds(30));
-    assert!(times[1] - times[0] >= chrono::Duration::seconds(1));
+    assert_eq!(times[0] - previous, time::Duration::seconds(30));
+    assert!(times[1] - times[0] >= time::Duration::seconds(1));
     assert_eq!(generator.calls.load(Ordering::SeqCst), 0);
     let posts = peer.posts.lock().unwrap();
     assert_eq!(posts[0], posts[1]);
@@ -1149,8 +1197,8 @@ fn policy_durations_reject_unsigned_to_signed_overflow_and_trigger_age_is_exact(
         ..Default::default()
     };
     cfg.validate().unwrap();
-    let now = DateTime::from_timestamp(1_800_000_600, 900_000_000).unwrap();
-    let event = json!({"event_id":"old-fractional-trigger","seq":1,"kind":"agent_message","mentions_you":true,"from_self":false,"retracted":false,"created_at":DateTime::from_timestamp(1_800_000_000, 0).unwrap().to_rfc3339()});
+    let now = datetime::from_timestamp(1_800_000_600, 900_000_000).unwrap();
+    let event = json!({"event_id":"old-fractional-trigger","seq":1,"kind":"agent_message","mentions_you":true,"from_self":false,"retracted":false,"created_at":datetime::from_timestamp(1_800_000_000, 0).unwrap().to_rfc3339()});
     let events = [event];
     assert!(
         tolight_reference_client::select_triggers(&events, &Default::default(), now, 600)
@@ -1170,8 +1218,8 @@ async fn huge_configured_spacing_and_retry_after_remain_interruptible_without_ti
         observed: Arc<Mutex<Vec<Duration>>>,
     }
     impl Clock for BoundedWait {
-        fn now(&self) -> DateTime<Utc> {
-            DateTime::from_timestamp(1_800_000_000, 900_000_000).unwrap()
+        fn now(&self) -> OffsetDateTime {
+            datetime::from_timestamp(1_800_000_000, 900_000_000).unwrap()
         }
         fn sleep(&self, duration: Duration) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
             self.observed.lock().unwrap().push(duration);
@@ -1290,7 +1338,7 @@ async fn say_status_rate_limits_discard_the_call_and_persist_a_request_wide_cool
             usize::from(status_call == 3)
         );
         let saved = LocalState::load(&cfg.state_path).unwrap();
-        assert_eq!(saved.cooldown_until, Some(clock.now().timestamp() + 7));
+        assert_eq!(saved.cooldown_until, Some(clock.now().unix_timestamp() + 7));
         let requests = peer.request_times.lock().unwrap().len();
         let mut restarted =
             ReferenceClient::with_dependencies(cfg, clock.clone(), generator.clone()).unwrap();
@@ -1349,7 +1397,7 @@ async fn resumed_proactive_status_rate_limit_discards_saved_output_without_sendi
         assert!(
             peer.request_times.lock().unwrap()[1..]
                 .iter()
-                .all(|time| { time.signed_duration_since(start).num_seconds() >= 7 })
+                .all(|time| { (*time - start).whole_seconds() >= 7 })
         );
         server.abort();
     }
@@ -1396,7 +1444,7 @@ async fn reply_status_rate_limit_keeps_the_original_id_and_waits_before_any_requ
     assert!(
         peer.request_times.lock().unwrap()[1..]
             .iter()
-            .all(|time| { time.signed_duration_since(start).num_seconds() >= 7 })
+            .all(|time| { (*time - start).whole_seconds() >= 7 })
     );
     server.abort();
 }
@@ -1529,7 +1577,7 @@ async fn restarted_pending_reply_does_not_reintroduce_retracted_trigger_text_to_
 
 #[tokio::test]
 async fn ungenerated_reply_is_discarded_only_for_an_observed_target_retraction() {
-    let now = DateTime::from_timestamp(Utc::now().timestamp(), 0).unwrap();
+    let now = datetime::from_timestamp(OffsetDateTime::now_utc().unix_timestamp(), 0).unwrap();
     let trigger = |id: &str, seq| json!({"seq":seq,"event_id":id,"kind":"agent_message","agent":{"agent_id":"other-agent"},"text":"具体问题","mentions_you":true,"from_self":false,"retracted":false,"created_at":now.to_rfc3339()});
     for notice in [
         Some(
@@ -1627,7 +1675,7 @@ async fn restored_ungenerated_reply_expires_after_the_boundary_but_keeps_unknown
         let time = Arc::new(MillisecondTime {
             now: AtomicI64::new(1_800_000_000_000),
         });
-        let trigger = json!({"seq":1,"event_id":"target","kind":"agent_message","mentions_you":true,"from_self":false,"retracted":false,"created_at":(time.now()-chrono::Duration::milliseconds(age_millis)).to_rfc3339(),"text":"一个待回应的问题"});
+        let trigger = json!({"seq":1,"event_id":"target","kind":"agent_message","mentions_you":true,"from_self":false,"retracted":false,"created_at":(time.now()-time::Duration::milliseconds(age_millis)).to_rfc3339(),"text":"一个待回应的问题"});
         let mut state = serde_json::to_value(LocalState {
             cursor: Some("before-pending".into()),
             pending: Some(PendingCall {
@@ -1694,14 +1742,14 @@ async fn an_ungenerated_reply_is_rechecked_after_spacing_and_request_cooldown() 
         let now = time.now();
         LocalState {
             cursor: Some("before-wait".into()),
-            last_call_at: spacing.then_some(now.timestamp()),
+            last_call_at: spacing.then_some(now.unix_timestamp()),
             last_call_subsec_nanos: spacing.then_some(0),
-            cooldown_until: (!spacing).then_some(now.timestamp() + 1),
+            cooldown_until: (!spacing).then_some(now.unix_timestamp() + 1),
             pending: Some(PendingCall {
                 id: "stable-before-wait".into(),
                 kind: "reply".into(),
                 trigger_ids: vec!["target".into()],
-                trigger_events: vec![json!({"seq":1,"event_id":"target","kind":"agent_message","created_at":(now-chrono::Duration::milliseconds(age_millis)).to_rfc3339(),"text":"等待前仍然新鲜的问题"})],
+                trigger_events: vec![json!({"seq":1,"event_id":"target","kind":"agent_message","created_at":(now-time::Duration::milliseconds(age_millis)).to_rfc3339(),"text":"等待前仍然新鲜的问题"})],
                 reply_to: Some("target".into()),
                 output: None,
                 hint: None,
@@ -1728,7 +1776,7 @@ async fn an_ungenerated_reply_is_rechecked_after_spacing_and_request_cooldown() 
         assert_eq!(report.messages, expected);
         assert_eq!(generator.calls.load(Ordering::SeqCst), expected as usize);
         assert_eq!(peer.posts.lock().unwrap().len(), expected as usize);
-        assert!(time.now() >= now + chrono::Duration::seconds(1));
+        assert!(time.now() >= now + time::Duration::seconds(1));
         let saved = LocalState::load(&cfg.state_path).unwrap();
         assert!(saved.pending.is_none());
         assert!(saved.processed.contains("target"));
@@ -1759,7 +1807,7 @@ async fn expired_secondary_triggers_leave_the_fixed_fresh_reply_target_unchanged
     let temp = tempfile::tempdir().unwrap();
     let time = Time::new();
     let now = time.now();
-    let old = json!({"seq":1,"event_id":"expired-other","kind":"agent_message","created_at":(now-chrono::Duration::seconds(601)).to_rfc3339(),"text":"过期的其他问题"});
+    let old = json!({"seq":1,"event_id":"expired-other","kind":"agent_message","created_at":(now-time::Duration::seconds(601)).to_rfc3339(),"text":"过期的其他问题"});
     let fresh = json!({"seq":2,"event_id":"fixed-target","kind":"agent_message","created_at":now.to_rfc3339(),"text":"本次固定的新问题"});
     let (url, peer, server) = peer(page(vec![old.clone(), fresh.clone()]), vec![]).await;
     let cfg = config(temp.path(), url);
@@ -1835,7 +1883,7 @@ async fn an_old_generated_reply_keeps_its_body_and_id_across_an_uncertain_post()
     let time = Time::new();
     let mut call = pending("reply");
     call.trigger_events = vec![
-        json!({"seq":1,"event_id":"trigger","kind":"agent_message","created_at":(time.now()-chrono::Duration::days(2)).to_rfc3339()}),
+        json!({"seq":1,"event_id":"trigger","kind":"agent_message","created_at":(time.now()-time::Duration::days(2)).to_rfc3339()}),
     ];
     LocalState {
         cursor: Some("before-uncertain-post".into()),
@@ -1889,7 +1937,7 @@ async fn the_public_reply_age_policy_does_not_shorten_an_open_sandbox_window() {
             id: "stable-sandbox-call".into(),
             kind: "conformance_reply".into(),
             trigger_ids: vec!["examiner-current".into()],
-            trigger_events: vec![json!({"seq":4,"event_id":"examiner-current","kind":"agent_message","created_at":(time.now()-chrono::Duration::seconds(2)).to_rfc3339(),"text":"仍在沙盒回复窗口内"})],
+            trigger_events: vec![json!({"seq":4,"event_id":"examiner-current","kind":"agent_message","created_at":(time.now()-time::Duration::seconds(2)).to_rfc3339(),"text":"仍在沙盒回复窗口内"})],
             reply_to: Some("examiner-current".into()),
             output: None,
             hint: None,

@@ -1,8 +1,8 @@
 mod support;
-use chrono::Utc;
 use serde_json::json;
 use sqlx::PgPool;
 use support::fake_agent::{FakeAgent, TestApp};
+use time::OffsetDateTime;
 use tolight_coordinator::operator;
 
 #[sqlx::test(migrations = "../tolight-coordinator-store/migrations")]
@@ -19,7 +19,7 @@ async fn signature_order_and_application_state_are_enforced(pool: PgPool) {
             "self",
             "",
             vec![],
-            Utc::now().timestamp() - 1000,
+            OffsetDateTime::now_utc().unix_timestamp() - 1000,
             &[],
         )
         .await;
@@ -38,7 +38,7 @@ async fn signature_order_and_application_state_are_enforced(pool: PgPool) {
             "self",
             "",
             vec![],
-            Utc::now().timestamp() - 1000,
+            OffsetDateTime::now_utc().unix_timestamp() - 1000,
             &[("Host", "other.invalid")],
         )
         .await;
@@ -106,7 +106,7 @@ async fn signature_order_and_application_state_are_enforced(pool: PgPool) {
             "self",
             "",
             vec![],
-            Utc::now().timestamp(),
+            OffsetDateTime::now_utc().unix_timestamp(),
             &[
                 ("Forwarded", "host=other.invalid;proto=https"),
                 ("X-Forwarded-Proto", "https"),
